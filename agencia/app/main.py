@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app import config
-from app.controllers import contas_controller
+from app.controllers import contas_controller, transferencias_controller
 from app.models.conta import ContaStore
 from app.services.event_log import RegistroEventos
 from app.services.lamport_clock import RelogioLamport
@@ -27,6 +27,7 @@ def criar_app() -> FastAPI:
     app.state.contas = ContaStore()
 
     app.include_router(contas_controller.router)
+    app.include_router(transferencias_controller.router)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
