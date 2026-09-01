@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+agencia/data/*.jsonl
+
+# Node (frontend)
+frontend/node_modules/
+frontend/dist/
+
+# Env / secrets
+.env
+
+# Sistema
+Thumbs.db
+desktop.ini
