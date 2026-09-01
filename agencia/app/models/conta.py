@@ -6,6 +6,7 @@ from typing import Optional
 class Conta:
     id: int
     nome_aluno: str
+    senha_hash: str
     saldo: float = 0.0
 
 

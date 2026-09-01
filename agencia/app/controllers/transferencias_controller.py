@@ -1,7 +1,9 @@
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app import config
 from app.config import AGENCIAS, agencia_responsavel
+from app.security import get_id_conta_autenticada, verificar_segredo_interno
 from app.views.transferencia_view import (
     CreditarRemotoRequest,
     CreditoRemotoResponse,
@@ -13,7 +15,12 @@ router = APIRouter(tags=["transferencias"])
 
 
 @router.post("/transferencias", response_model=TransferenciaResponse)
-async def transferir(body: TransferenciaRequest, request: Request):
+async def transferir(
+    body: TransferenciaRequest, request: Request, id_autenticado: int = Depends(get_id_conta_autenticada)
+):
+    if body.id_origem != id_autenticado:
+        raise HTTPException(status_code=403, detail="Você só pode transferir a partir da sua própria conta.")
+
     state = request.app.state
 
     conta_origem = state.contas.obter(body.id_origem)
@@ -62,6 +69,7 @@ async def transferir(body: TransferenciaRequest, request: Request):
                     "timestamp_lamport": ts_envio,
                     "origem_agencia": state.id_agencia,
                 },
+                headers={"X-Internal-Secret": config.INTERNAL_SHARED_SECRET},
             )
             resposta.raise_for_status()
         return TransferenciaResponse(mensagem="Transferência concluída (entre agências).")
@@ -83,7 +91,11 @@ async def transferir(body: TransferenciaRequest, request: Request):
         )
 
 
-@router.post("/contas/{id_conta}/creditar-remoto", response_model=CreditoRemotoResponse)
+@router.post(
+    "/contas/{id_conta}/creditar-remoto",
+    response_model=CreditoRemotoResponse,
+    dependencies=[Depends(verificar_segredo_interno)],
+)
 async def creditar_remoto(id_conta: int, body: CreditarRemotoRequest, request: Request):
     state = request.app.state
 

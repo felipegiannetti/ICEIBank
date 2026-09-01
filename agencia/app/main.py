@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app import config
-from app.controllers import contas_controller, transferencias_controller
+from app.controllers import auth_controller, contas_controller, transferencias_controller
 from app.models.conta import ContaStore
 from app.services.event_log import RegistroEventos
 from app.services.lamport_clock import RelogioLamport
@@ -26,6 +26,7 @@ def criar_app() -> FastAPI:
     app.state.registro = RegistroEventos(f"agencia-{id_agencia}")
     app.state.contas = ContaStore()
 
+    app.include_router(auth_controller.router)
     app.include_router(contas_controller.router)
     app.include_router(transferencias_controller.router)
 

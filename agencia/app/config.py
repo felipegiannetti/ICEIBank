@@ -15,7 +15,7 @@ AGENCIAS = [
 ]
 
 # Segredos - lidos do ambiente, com defaults apenas para desenvolvimento local.
-JWT_SECRET_KEY = os.environ.get("ICEI_JWT_SECRET", "dev-secret-troque-em-producao")
+JWT_SECRET_KEY = os.environ.get("ICEI_JWT_SECRET", "dev-secret-troque-em-producao-tamanho-minimo-32-bytes")
 JWT_EXPIRE_MINUTES = int(os.environ.get("ICEI_JWT_EXPIRE_MINUTES", "30"))
 INTERNAL_SHARED_SECRET = os.environ.get("ICEI_INTERNAL_SECRET", "dev-internal-secret-troque-em-producao")
 
