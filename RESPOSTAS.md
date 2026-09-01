@@ -29,7 +29,29 @@ Nao. O saldo da conta de origem (conta 0, agencia 0) foi debitado normalmente (d
 
 ### Parte E - Linha do tempo (secao 10.3)
 
-_A preencher._
+**Observacao (passo 3 da tarefa):** rodando `mesclar_logs.py` depois de criar uma conta em cada uma das 3 agencias (sem nenhuma transferencia entre elas ainda) e depois um deposito independente em duas agencias diferentes, a linha do tempo unificada mostrou:
+
+```
+[Lamport 1] (...T00:51:18...) agencia-0 - CRIAR_CONTA {id: 0, ...}
+[Lamport 1] (...T00:51:20...) agencia-1 - CRIAR_CONTA {id: 1, ...}
+[Lamport 1] (...T00:51:22...) agencia-2 - CRIAR_CONTA {id: 2, ...}
+[Lamport 2] (...T00:51:22.383109...) agencia-0 - DEPOSITO {id: 0, valor: 10, ...}
+[Lamport 2] (...T00:51:22.383109...) agencia-2 - DEPOSITO {id: 2, valor: 10, ...}
+[Lamport 3] (...) agencia-0 - TRANSFERENCIA_DEBITO {id_origem: 0, id_destino: 1, valor: 15}
+[Lamport 5] (...) agencia-1 - TRANSFERENCIA_CREDITO_REMOTO {id_conta: 1, valor: 15, origem_agencia: 0}
+```
+
+**1. O que significa ver dois eventos com timestamps diferentes, sem saber se um influenciou o outro?**
+
+Significa que a unica garantia que o relogio de Lamport da e em uma direcao so: se A aconteceu antes de B causalmente, entao `timestamp(A) < timestamp(B)`. Ele nao garante a volta - ou seja, ver `timestamp(A) < timestamp(B)` NAO prova que A causou ou influenciou B; pode ser so uma coincidencia da ordem em que os contadores avancaram em processos completamente independentes. Na pratica, isso significa que a linha do tempo unificada por Lamport e util para reconstruir uma ordem *consistente com* a causalidade (nunca inverte uma relacao causal real), mas nao e confiavel para *inferir* causalidade a partir dos numeros sozinhos - seria preciso ir ao conteudo dos eventos (ex.: um `TRANSFERENCIA_CREDITO_REMOTO` citando explicitamente a `origem_agencia` e o `id_origem`) para saber se ha uma relacao real.
+
+**2. Os empates observados (Lamport 1 entre as 3 agencias, Lamport 2 entre agencia-0 e agencia-2) sao causalmente relacionados ou concorrentes? A ordem por `hora_parede` bate com a ordem por Lamport?**
+
+Sao genuinamente concorrentes: as 3 contas foram criadas em 3 processos que, ate aquele momento, nunca haviam trocado nenhuma mensagem entre si - nao ha nenhuma cadeia de `ao_enviar`/`ao_receber` conectando esses eventos, entao nao existe "antes" ou "depois" causal entre eles, so o acaso de todos comecarem do mesmo contador inicial (0) e serem o primeiro evento de cada processo. A `hora_parede` mostra isso claramente: os 3 eventos empatados em Lamport 1 tem horarios de parede bem diferentes (`00:51:18`, `00:51:20`, `00:51:22` - quase 4 segundos de diferenca no mundo real, porque cada `Invoke-RestMethod` foi disparado em sequencia manualmente), enquanto o Lamport os trata como se fossem "do mesmo instante logico". Ja o empate em Lamport 2 (`agencia-0` e `agencia-2`, ambos DEPOSITO) tem `hora_parede` praticamente identica ate o microssegundo (`00:51:22.383109` nos dois) - pura coincidencia de velocidade de execucao, nao prova nem contradiz nada sobre a relacao causal. Ou seja: a ordem por hora de parede NAO bate de forma confiavel com a ordem por Lamport (nem deveria) - Lamport ordena por causalidade logica, hora de parede ordena por relogio fisico, e as duas coisas so coincidem quando processos que se comunicam entre si tambem estao com os relogios fisicos bem sincronizados, o que nao e garantido em um sistema distribuido real.
+
+**3. O relogio de Lamport sozinho seria suficiente para distinguir com certeza "A e B sao concorrentes" de "A aconteceu antes de B"? Por que isso motiva o relogio vetorial?**
+
+Nao. Como mostrado acima, dois eventos com o MESMO timestamp de Lamport sao claramente concorrentes (isso o Lamport ate ajuda a perceber, embora indiretamente, ja que se fossem causalmente relacionados um teria estritamente que ser maior que o outro), mas dois eventos com timestamps DIFERENTES podem ser tanto causalmente relacionados quanto concorrentes - o relogio de Lamport, sozinho, nao tem como diferenciar esses dois casos so olhando os numeros. Isso e exatamente a limitacao que motiva o relogio vetorial (Sprint 2): em vez de um unico contador escalar por processo, cada processo mantem um vetor com um contador para CADA processo do sistema, o que permite comparar dois timestamps e concluir com certeza se um domina o outro em todas as posicoes (causalmente relacionados) ou se nenhum domina o outro em todas as posicoes (genuinamente concorrentes) - uma garantia bidirecional que o relogio escalar de Lamport nao oferece.
 
 ### Parte F - Autenticacao JWT (secao 11.3)
 
