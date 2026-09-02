@@ -79,4 +79,18 @@ _A preencher._
 
 ### Funcionalidade adicional
 
-_A preencher: descricao das duas funcionalidades escolhidas (historico de transacoes e limite diario configuravel de saque/transferencia) e justificativa da escolha._
+Foram implementadas duas funcionalidades adicionais (alem do minimo de uma exigido pela secao 2.1), cada uma com commit e evidencia proprios.
+
+#### 1. Historico de transacoes por conta
+
+**O que faz:** `GET /contas/{id}/historico` (protegido por JWT + dono da conta) retorna a lista de eventos registrados para uma conta especifica, do mais recente para o mais antigo, com dois filtros opcionais via query string: `limit` (quantidade maxima de eventos) e `tipo` (ex.: `?tipo=SAQUE` retorna so os saques).
+
+**Como foi implementada:** reaproveita o log de eventos ja existente (`agencia/data/eventos-agencia-{N}.jsonl`) em vez de criar uma estrutura de dados nova. O metodo `RegistroEventos.listar_eventos()` le o `.jsonl` da propria agencia e filtra as linhas cujo campo `detalhes` referencia a conta pedida, em qualquer uma das chaves usadas pelos diferentes tipos de evento (`id`, `id_origem`, `id_destino`, `id_conta`). Isso funciona sem precisar consultar outras agencias: pelo particionamento (secao 5 do roteiro), so a agencia dona de uma conta grava eventos que a referenciam - o debito de uma transferencia e gravado pela agencia de origem, o credito remoto e gravado pela agencia de destino no proprio arquivo dela para a propria conta dela.
+
+**Por que essa escolha:** e a funcionalidade que mais aproveita trabalho ja feito na Parte B (o registro de eventos ja existia para fins de auditoria/linha do tempo) e reforca visualmente, no dia a dia de quem usa o sistema, o mesmo conceito central do sprint - o carimbo de relogio de Lamport em cada operacao - agora exposto como uma feature de produto (extrato) e nao so como log interno.
+
+**Evidencia:** `evidencias/sprint1/funcionalidade-adicional-historico.png`.
+
+#### 2. Limite diario configuravel de saque/transferencia
+
+_A preencher apos a implementacao._

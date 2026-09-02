@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from app.config import agencia_responsavel
 from app.models.conta import Conta
 from app.security import exigir_dono, hash_senha
-from app.views.conta_view import ContaResponse, CriarContaRequest, ValorRequest
+from app.views.conta_view import ContaResponse, CriarContaRequest, HistoricoResponse, ValorRequest
 
 router = APIRouter(prefix="/contas", tags=["contas"])
 
@@ -63,3 +63,19 @@ def sacar(id_conta: int, body: ValorRequest, request: Request, _: int = Depends(
     conta.saldo -= body.valor
     state.registro.registrar("SAQUE", ts, {"id": id_conta, "valor": body.valor, "novo_saldo": conta.saldo})
     return conta
+
+
+@router.get("/{id_conta}/historico", response_model=HistoricoResponse)
+def historico(
+    id_conta: int,
+    request: Request,
+    limit: int | None = None,
+    tipo: str | None = None,
+    _: int = Depends(exigir_dono),
+):
+    state = request.app.state
+    if not state.contas.existe(id_conta):
+        raise HTTPException(status_code=404, detail="Conta não encontrada nesta agência.")
+
+    eventos = state.registro.listar_eventos(id_conta, tipo=tipo, limit=limit)
+    return HistoricoResponse(conta_id=id_conta, eventos=eventos)

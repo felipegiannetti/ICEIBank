@@ -20,3 +20,15 @@ class ContaResponse(BaseModel):
 
 class ValorRequest(BaseModel):
     valor: float = Field(gt=0)
+
+
+class EventoHistoricoResponse(BaseModel):
+    tipo: str
+    timestamp_lamport: int
+    hora_parede: str
+    detalhes: dict
+
+
+class HistoricoResponse(BaseModel):
+    conta_id: int
+    eventos: list[EventoHistoricoResponse]
