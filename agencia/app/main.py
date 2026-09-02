@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import config
@@ -21,6 +22,17 @@ def criar_app() -> FastAPI:
         sys.exit(1)
 
     app = FastAPI(title=f"ICEIBank - Agência {id_agencia}")
+
+    # Libera o frontend (rodando em outra origem, ex. localhost:5173 do Vite)
+    # a chamar esta API. Sem credenciais/cookies (usa Bearer token no header),
+    # entao allow_origins="*" nao traz risco de CSRF via cookie.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     app.state.id_agencia = id_agencia
     app.state.relogio = RelogioLamport()
     app.state.registro = RegistroEventos(f"agencia-{id_agencia}")

@@ -75,7 +75,23 @@ Qualquer pessoa de posse da chave secreta conseguiria forjar tokens validos para
 
 ### Parte G - Frontend (secao 12.3)
 
-_A preencher._
+**Nota tecnica:** a API precisou ganhar `CORSMiddleware` (em `agencia/app/main.py`) para aceitar chamadas vindas de outra origem (o frontend em `http://localhost:5173`, servido pelo Vite, e um processo completamente separado da agencia em `http://localhost:4000`) - sem isso, o navegador bloqueia a requisicao antes mesmo dela chegar na API (erro de preflight). `allow_origins=["*"]` foi usado porque a autenticacao e via header `Authorization: Bearer` (nao cookie), entao nao ha risco de CSRF que a restricao de origem normalmente mitigaria.
+
+**1. Como o frontend "lembra" de reenviar o token em cada requisicao depois do login?**
+
+O token retornado por `/auth/login` e guardado no `localStorage` do navegador (`api/client.js`, funcao `setSessao`), que persiste entre navegacoes de pagina (ao contrario de uma variavel em memoria, que se perderia a cada re-render). Toda chamada feita atraves do wrapper `request()` do `api/client.js` le esse token do `localStorage` e anexa automaticamente o cabecalho `Authorization: Bearer <token>` antes de disparar o `fetch` - as paginas (`DepositoPage`, `SaquePage`, etc.) nunca lidam com o token diretamente, so chamam `api.depositar(...)`, `api.sacar(...)` etc., e o cabecalho e injetado de forma transparente.
+
+**2. Se o token expirar no meio de uma operacao, o que acontece?**
+
+A API responde `401` com `{"erro": "Token expirado."}`. O wrapper `request()` intercepta qualquer resposta `401` numa chamada autenticada e chama `limparSessao()` automaticamente (apaga o token do `localStorage`), alem de lancar um `ApiError` com a mensagem do backend. A pagina que fez a chamada captura esse erro no seu `try/catch` e exibe a mensagem via `ErrorBanner` - ou seja, a pessoa usuaria VE a mensagem de erro (nao e um erro generico silencioso), mas nesta implementacao ela precisa navegar manualmente de volta para `/login` depois disso (o `ProtectedRoute` so bloqueia a entrada em rotas protegidas numa navegacao nova, nao redireciona automaticamente uma pagina ja aberta no meio de uma operacao falha). Isso e uma limitacao conhecida da implementacao atual - o ideal seria o `ApiError` de 401 disparar um redirecionamento automatico para `/login`, o que nao foi implementado neste sprint.
+
+**3. Onde ficam o Model, a View e o Controller no frontend?**
+
+- **Model:** `src/api/client.js` (as funcoes de acesso a API e o estado persistido - token, id da conta, URL da agencia - no `localStorage`) e os dados retornados pela API que cada pagina guarda em `useState` (ex.: `conta`, `eventos`, `limite`).
+- **View:** o JSX de `src/pages/*.jsx` e `src/components/*.jsx` - a parte puramente de apresentacao (formularios, tabelas, banners de erro/sucesso).
+- **Controller:** os handlers de submit de cada pagina (`aoSubmeter`, `carregarSaldo`, etc.) e o `AuthContext` (`src/context/AuthContext.jsx`), que orquestram a chamada ao Model (`api.*`) e atualizam o estado que a View renderiza.
+
+A separacao e razoavelmente clara porque cada pagina segue o mesmo padrao (estado + handler + JSX no mesmo arquivo), mas nao e uma separacao arquitetural rigida como um MVC de backend - em uma aplicacao React idiomatica, Model/View/Controller tendem a ficar mais entrelacados dentro do proprio componente do que em camadas de arquivos totalmente separadas; o `api/client.js` isolado e o `AuthContext` compartilhado sao os pontos onde essa separacao fica mais explicita.
 
 ### Funcionalidade adicional
 
