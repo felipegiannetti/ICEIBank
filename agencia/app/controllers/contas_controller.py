@@ -1,9 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.config import agencia_responsavel
-from app.models.conta import Conta
+from app.models.conta import Conta, LimiteExcedidoError
 from app.security import exigir_dono, hash_senha
-from app.views.conta_view import ContaResponse, CriarContaRequest, HistoricoResponse, ValorRequest
+from app.views.conta_view import (
+    AtualizarLimiteRequest,
+    ContaResponse,
+    CriarContaRequest,
+    HistoricoResponse,
+    LimiteResponse,
+    ValorRequest,
+)
 
 router = APIRouter(prefix="/contas", tags=["contas"])
 
@@ -59,6 +66,17 @@ def sacar(id_conta: int, body: ValorRequest, request: Request, _: int = Depends(
     if conta.saldo < body.valor:
         raise HTTPException(status_code=400, detail="Saldo insuficiente.")
 
+    try:
+        conta.consumir_limite_diario(body.valor)
+    except LimiteExcedidoError as erro:
+        ts_falha = state.relogio.evento_local()
+        state.registro.registrar(
+            "SAQUE_REJEITADO_LIMITE",
+            ts_falha,
+            {"id": id_conta, "valor": body.valor, "limite_diario": conta.limite_diario, "uso_diario": conta.uso_diario},
+        )
+        raise HTTPException(status_code=400, detail=str(erro))
+
     ts = state.relogio.evento_local()
     conta.saldo -= body.valor
     state.registro.registrar("SAQUE", ts, {"id": id_conta, "valor": body.valor, "novo_saldo": conta.saldo})
@@ -79,3 +97,39 @@ def historico(
 
     eventos = state.registro.listar_eventos(id_conta, tipo=tipo, limit=limit)
     return HistoricoResponse(conta_id=id_conta, eventos=eventos)
+
+
+@router.get("/{id_conta}/limite", response_model=LimiteResponse)
+def consultar_limite(id_conta: int, request: Request, _: int = Depends(exigir_dono)):
+    state = request.app.state
+    conta = state.contas.obter(id_conta)
+    if not conta:
+        raise HTTPException(status_code=404, detail="Conta não encontrada nesta agência.")
+
+    conta.resetar_uso_diario_se_necessario()
+    return LimiteResponse(
+        id=conta.id,
+        limite_diario=conta.limite_diario,
+        uso_diario_atual=conta.uso_diario,
+        restante_hoje=conta.limite_diario - conta.uso_diario,
+    )
+
+
+@router.put("/{id_conta}/limite", response_model=LimiteResponse)
+def atualizar_limite(id_conta: int, body: AtualizarLimiteRequest, request: Request, _: int = Depends(exigir_dono)):
+    state = request.app.state
+    conta = state.contas.obter(id_conta)
+    if not conta:
+        raise HTTPException(status_code=404, detail="Conta não encontrada nesta agência.")
+
+    conta.limite_diario = body.novo_limite
+    ts = state.relogio.evento_local()
+    state.registro.registrar("LIMITE_ATUALIZADO", ts, {"id": id_conta, "novo_limite": body.novo_limite})
+
+    conta.resetar_uso_diario_se_necessario()
+    return LimiteResponse(
+        id=conta.id,
+        limite_diario=conta.limite_diario,
+        uso_diario_atual=conta.uso_diario,
+        restante_hoje=conta.limite_diario - conta.uso_diario,
+    )

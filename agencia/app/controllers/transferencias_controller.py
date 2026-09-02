@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app import config
 from app.config import AGENCIAS, agencia_responsavel
+from app.models.conta import LimiteExcedidoError
 from app.security import get_id_conta_autenticada, verificar_segredo_interno
 from app.views.transferencia_view import (
     CreditarRemotoRequest,
@@ -28,6 +29,23 @@ async def transferir(
         raise HTTPException(status_code=404, detail="Conta de origem não encontrada nesta agência.")
     if conta_origem.saldo < body.valor:
         raise HTTPException(status_code=400, detail="Saldo insuficiente.")
+
+    try:
+        conta_origem.consumir_limite_diario(body.valor)
+    except LimiteExcedidoError as erro:
+        ts_falha = state.relogio.evento_local()
+        state.registro.registrar(
+            "TRANSFERENCIA_REJEITADA_LIMITE",
+            ts_falha,
+            {
+                "id_origem": body.id_origem,
+                "id_destino": body.id_destino,
+                "valor": body.valor,
+                "limite_diario": conta_origem.limite_diario,
+                "uso_diario": conta_origem.uso_diario,
+            },
+        )
+        raise HTTPException(status_code=400, detail=str(erro))
 
     agencia_destino = agencia_responsavel(body.id_destino)
 

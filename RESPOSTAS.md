@@ -93,4 +93,10 @@ Foram implementadas duas funcionalidades adicionais (alem do minimo de uma exigi
 
 #### 2. Limite diario configuravel de saque/transferencia
 
-_A preencher apos a implementacao._
+**O que faz:** cada conta tem um limite diario de saque/transferencia (valor default de `R$ 1000,00`, definido em `config.DEFAULT_LIMITE_DIARIO`), que soma o total sacado + transferido (na ponta de origem) ao longo do dia corrente e bloqueia a operacao quando o total ultrapassaria o limite - mesmo que o saldo em conta seja suficiente. O dono da conta pode consultar (`GET /contas/{id}/limite`) e alterar (`PUT /contas/{id}/limite`) o proprio limite a qualquer momento.
+
+**Como foi implementada:** a `Conta` (`models/conta.py`) ganhou 3 campos: `limite_diario`, `uso_diario` (quanto ja foi usado hoje) e `data_uso_diario` (para saber quando resetar). O metodo `consumir_limite_diario(valor)` reseta `uso_diario` para 0 automaticamente se `data_uso_diario` for de um dia anterior (reset "preguicoso", sem precisar de nenhum scheduler rodando em background), e levanta `LimiteExcedidoError` se `uso_diario + valor > limite_diario`. Esse metodo e chamado exclusivamente no lado do DEBITO - em `sacar` e no debito de `transferir` - nunca em `depositar` nem no credito (local ou remoto) de uma transferencia recebida, ja que o limite existe para conter o quanto uma conta pode *tirar* dinheiro, nao o quanto pode receber. Uma rejeicao por limite gera um evento (`SAQUE_REJEITADO_LIMITE` ou `TRANSFERENCIA_REJEITADA_LIMITE`) carimbado com `relogio.evento_local()`, no mesmo espirito do `TRANSFERENCIA_FALHOU` ja existente na Parte D - toda tentativa relevante fica registrada, mesmo as que nao se concretizam. O saldo so e debitado depois que a checagem de limite passa, entao uma tentativa rejeitada nunca deixa a conta com saldo debitado por engano.
+
+**Por que essa escolha (e por que diario, nao por operacao):** entre as duas variantes sugeridas pelo roteiro (limite por operacao ou por dia), o limite diario foi escolhido por exigir estado que persiste entre chamadas (ao contrario de um limite por operacao, que e uma comparacao sem memoria) - e um exercicio mais realista de regra de negocio com estado, e mais parecido com como bancos de verdade implementam limite de saque diario.
+
+**Evidencia:** `evidencias/sprint1/funcionalidade-adicional-limite.png`.

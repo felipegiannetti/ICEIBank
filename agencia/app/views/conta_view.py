@@ -32,3 +32,14 @@ class EventoHistoricoResponse(BaseModel):
 class HistoricoResponse(BaseModel):
     conta_id: int
     eventos: list[EventoHistoricoResponse]
+
+
+class LimiteResponse(BaseModel):
+    id: int
+    limite_diario: float
+    uso_diario_atual: float
+    restante_hoje: float
+
+
+class AtualizarLimiteRequest(BaseModel):
+    novo_limite: float = Field(gt=0)
