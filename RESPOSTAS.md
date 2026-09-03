@@ -77,6 +77,10 @@ Qualquer pessoa de posse da chave secreta conseguiria forjar tokens validos para
 
 **Nota tecnica:** a API precisou ganhar `CORSMiddleware` (em `agencia/app/main.py`) para aceitar chamadas vindas de outra origem (o frontend em `http://localhost:5173`, servido pelo Vite, e um processo completamente separado da agencia em `http://localhost:4000`) - sem isso, o navegador bloqueia a requisicao antes mesmo dela chegar na API (erro de preflight). `allow_origins=["*"]` foi usado porque a autenticacao e via header `Authorization: Bearer` (nao cookie), entao nao ha risco de CSRF que a restricao de origem normalmente mitigaria.
 
+**Tela de cadastro:** alem do login, o frontend ganhou uma pagina `/cadastro` que chama `POST /contas` diretamente (rota publica, ver justificativa na Parte F) - o formulario pede numero da conta, nome, senha e deposito inicial opcional, junto com o mesmo seletor de agencia do login (a conta precisa ser criada na agencia correta, regra `id % 3`). Ao concluir, redireciona para `/login` ja com o numero da conta preenchido e uma mensagem de sucesso.
+
+**Identidade visual:** paleta azul claro/roxo/branco (tokens CSS em `index.css` - `--azul`, `--roxo`, `--gradiente-primario`), fonte "Plus Jakarta Sans", cartoes com sombra suave e cantos arredondados, e uma barra de navegacao fixa (`components/AppShell.jsx`) para as paginas autenticadas, substituindo o padrao anterior de cada pagina ter seu proprio botao "Voltar".
+
 **1. Como o frontend "lembra" de reenviar o token em cada requisicao depois do login?**
 
 O token retornado por `/auth/login` e guardado no `localStorage` do navegador (`api/client.js`, funcao `setSessao`), que persiste entre navegacoes de pagina (ao contrario de uma variavel em memoria, que se perderia a cada re-render). Toda chamada feita atraves do wrapper `request()` do `api/client.js` le esse token do `localStorage` e anexa automaticamente o cabecalho `Authorization: Bearer <token>` antes de disparar o `fetch` - as paginas (`DepositoPage`, `SaquePage`, etc.) nunca lidam com o token diretamente, so chamam `api.depositar(...)`, `api.sacar(...)` etc., e o cabecalho e injetado de forma transparente.

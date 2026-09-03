@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
+import CadastroPage from "./pages/CadastroPage";
 import ContaPage from "./pages/ContaPage";
 import DepositoPage from "./pages/DepositoPage";
 import HistoricoPage from "./pages/HistoricoPage";
@@ -14,6 +15,7 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/cadastro" element={<CadastroPage />} />
         <Route
           path="/conta"
           element={

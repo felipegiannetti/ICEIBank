@@ -76,6 +76,13 @@ export const api = {
   login: (idConta, senha) =>
     request("/auth/login", { method: "POST", body: { id_conta: idConta, senha }, autenticado: false }),
 
+  criarConta: (id, nomeAluno, senha, saldoInicial) =>
+    request("/contas", {
+      method: "POST",
+      body: { id, nome_aluno: nomeAluno, senha, saldo_inicial: saldoInicial },
+      autenticado: false,
+    }),
+
   consultarSaldo: (id) => request(`/contas/${id}`),
 
   depositar: (id, valor) => request(`/contas/${id}/depositar`, { method: "POST", body: { valor } }),

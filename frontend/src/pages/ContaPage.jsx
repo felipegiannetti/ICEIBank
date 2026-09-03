@@ -1,11 +1,20 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, api } from "../api/client";
+import AppShell from "../components/AppShell";
 import ErrorBanner from "../components/ErrorBanner";
 import { useAuth } from "../context/AuthContext";
 
+const ACOES = [
+  { to: "/depositar", label: "Depositar", icone: "↓" },
+  { to: "/sacar", label: "Sacar", icone: "↑" },
+  { to: "/transferir", label: "Transferir", icone: "⇄" },
+  { to: "/historico", label: "Histórico", icone: "≡" },
+  { to: "/limite", label: "Limite diário", icone: "◔" },
+];
+
 export default function ContaPage() {
-  const { idConta, logout } = useAuth();
+  const { idConta } = useAuth();
   const [conta, setConta] = useState(null);
   const [erro, setErro] = useState(null);
 
@@ -25,27 +34,32 @@ export default function ContaPage() {
   }
 
   return (
-    <div className="page">
-      <h1>Minha conta</h1>
+    <AppShell>
+      <div className="page-header">
+        <h1>Minha conta</h1>
+        <p>Visão geral do seu saldo e ações rápidas.</p>
+      </div>
+
       {conta && (
         <div className="saldo-card">
-          <p>
+          <p className="rotulo">Saldo disponível</p>
+          <p className="saldo">R$ {conta.saldo.toFixed(2)}</p>
+          <p className="conta-info">
             Conta {conta.id} — {conta.nome_aluno}
           </p>
-          <p className="saldo">Saldo: R$ {conta.saldo.toFixed(2)}</p>
         </div>
       )}
+
       <ErrorBanner erro={erro} />
-      <nav className="menu">
-        <Link to="/depositar">Depositar</Link>
-        <Link to="/sacar">Sacar</Link>
-        <Link to="/transferir">Transferir</Link>
-        <Link to="/historico">Histórico</Link>
-        <Link to="/limite">Limite diário</Link>
-      </nav>
-      <button className="secundario" onClick={logout}>
-        Sair
-      </button>
-    </div>
+
+      <div className="menu-grid">
+        {ACOES.map((acao) => (
+          <Link key={acao.to} to={acao.to} className="menu-item">
+            <span className="icone">{acao.icone}</span>
+            {acao.label}
+          </Link>
+        ))}
+      </div>
+    </AppShell>
   );
 }
