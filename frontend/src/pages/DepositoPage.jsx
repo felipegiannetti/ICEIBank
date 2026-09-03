@@ -9,42 +9,50 @@ export default function DepositoPage() {
   const [valor, setValor] = useState("");
   const [resultado, setResultado] = useState(null);
   const [erro, setErro] = useState(null);
+  const [carregando, setCarregando] = useState(false);
 
   async function aoSubmeter(evento) {
     evento.preventDefault();
     setErro(null);
     setResultado(null);
+    setCarregando(true);
     try {
       const conta = await api.depositar(idConta, parseFloat(valor));
       setResultado(`Depósito concluído. Novo saldo: R$ ${conta.saldo.toFixed(2)}`);
       setValor("");
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Falha inesperada ao conectar.");
+    } finally {
+      setCarregando(false);
     }
   }
 
   return (
-    <AppShell>
-      <div className="page-header">
-        <h1>Depositar</h1>
-        <p>Conta {idConta}</p>
-      </div>
-
-      <div className="card">
+    <AppShell titulo="Depositar" subtitulo={`Conta ${idConta}`}>
+      <div className="card entrada">
         <form onSubmit={aoSubmeter}>
           <label>
             Valor
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={valor}
-              onChange={(e) => setValor(e.target.value)}
-              placeholder="0.00"
-              required
-            />
+            <div className="campo-com-icone">
+              <span style={{ position: "absolute", left: 14, color: "var(--texto-fraco)", fontWeight: 700 }}>
+                R$
+              </span>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+                placeholder="0,00"
+                style={{ paddingLeft: 40 }}
+                required
+              />
+            </div>
           </label>
-          <button type="submit">Depositar</button>
+          <button type="submit" disabled={carregando}>
+            {carregando && <span className="spinner" />}
+            {carregando ? "Depositando..." : "Depositar"}
+          </button>
         </form>
 
         {resultado && <p className="sucesso" style={{ marginTop: 16 }}>{resultado}</p>}

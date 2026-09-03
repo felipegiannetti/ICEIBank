@@ -79,7 +79,9 @@ Qualquer pessoa de posse da chave secreta conseguiria forjar tokens validos para
 
 **Tela de cadastro:** alem do login, o frontend ganhou uma pagina `/cadastro` que chama `POST /contas` diretamente (rota publica, ver justificativa na Parte F) - o formulario pede numero da conta, nome, senha e deposito inicial opcional, junto com o mesmo seletor de agencia do login (a conta precisa ser criada na agencia correta, regra `id % 3`). Ao concluir, redireciona para `/login` ja com o numero da conta preenchido e uma mensagem de sucesso.
 
-**Identidade visual:** paleta azul claro/roxo/branco (tokens CSS em `index.css` - `--azul`, `--roxo`, `--gradiente-primario`), fonte "Plus Jakarta Sans", cartoes com sombra suave e cantos arredondados, e uma barra de navegacao fixa (`components/AppShell.jsx`) para as paginas autenticadas, substituindo o padrao anterior de cada pagina ter seu proprio botao "Voltar".
+**Identidade visual:** paleta azul claro/roxo/branco (tokens CSS em `index.css` - `--azul`, `--roxo`, `--gradiente-primario`), fonte "Plus Jakarta Sans", cartoes com sombra suave e cantos arredondados, e uma barra lateral de navegacao (`components/AppShell.jsx`, com icones em `components/icons.jsx`) para as paginas autenticadas, inspirada em aplicativos bancarios (saldo em destaque com opcao de ocultar, acoes rapidas com icones, extrato estilizado como lista de transacoes com cor por credito/debito, limite diario com barra de progresso). A barra lateral colapsa para uma faixa horizontal com rolagem em telas estreitas.
+
+**Pagina de perfil:** `/perfil` (acessada pelo avatar/numero da conta na barra lateral) reune nome, numero da conta, agencia atual, saldo e limite diario num só lugar, com atalhos para ajustar o limite, ver o extrato ou sair - nao ha edicao de dados aqui, ja que a API nao expoe nenhum endpoint para alterar nome/senha neste sprint.
 
 **1. Como o frontend "lembra" de reenviar o token em cada requisicao depois do login?**
 

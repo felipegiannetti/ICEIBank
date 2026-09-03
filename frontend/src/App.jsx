@@ -7,6 +7,7 @@ import DepositoPage from "./pages/DepositoPage";
 import HistoricoPage from "./pages/HistoricoPage";
 import LimitePage from "./pages/LimitePage";
 import LoginPage from "./pages/LoginPage";
+import PerfilPage from "./pages/PerfilPage";
 import SaquePage from "./pages/SaquePage";
 import TransferenciaPage from "./pages/TransferenciaPage";
 
@@ -61,6 +62,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <LimitePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/perfil"
+          element={
+            <ProtectedRoute>
+              <PerfilPage />
             </ProtectedRoute>
           }
         />
