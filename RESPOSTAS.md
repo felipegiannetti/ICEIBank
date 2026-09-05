@@ -111,7 +111,7 @@ Foram implementadas duas funcionalidades adicionais (alem do minimo de uma exigi
 
 **Por que essa escolha:** e a funcionalidade que mais aproveita trabalho ja feito na Parte B (o registro de eventos ja existia para fins de auditoria/linha do tempo) e reforca visualmente, no dia a dia de quem usa o sistema, o mesmo conceito central do sprint - o carimbo de relogio de Lamport em cada operacao - agora exposto como uma feature de produto (extrato) e nao so como log interno.
 
-**Evidencia:** `evidencias/sprint1/funcionalidade-adicional-historico.png`.
+**Evidencia:** `evidencias/sprint1/extra-historico/funcionalidade-adicional-historico.png`.
 
 #### 2. Limite diario configuravel de saque/transferencia
 
@@ -121,4 +121,4 @@ Foram implementadas duas funcionalidades adicionais (alem do minimo de uma exigi
 
 **Por que essa escolha (e por que diario, nao por operacao):** entre as duas variantes sugeridas pelo roteiro (limite por operacao ou por dia), o limite diario foi escolhido por exigir estado que persiste entre chamadas (ao contrario de um limite por operacao, que e uma comparacao sem memoria) - e um exercicio mais realista de regra de negocio com estado, e mais parecido com como bancos de verdade implementam limite de saque diario.
 
-**Evidencia:** `evidencias/sprint1/funcionalidade-adicional-limite.png`.
+**Evidencia:** `evidencias/sprint1/extra-limite/funcionalidade-adicional-limite.png`.
