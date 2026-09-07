@@ -270,11 +270,3 @@ evidencias/sprint1/
 ## Documentação de decisões e respostas
 
 Todas as perguntas conceituais do roteiro (relógio de Lamport, transferências, linha do tempo, JWT, frontend) e as justificativas de design (modelo de credencial, autorização, segredo interno, escolha do limite diário) estão respondidas em detalhe em [`RESPOSTAS.md`](RESPOSTAS.md).
-
----
-
-## Roadmap dos próximos sprints
-
-- **Sprint 2** — Comunicação indireta via mensageria/Pub-Sub, com relógio vetorial substituindo o escalar de Lamport.
-- **Sprint 3** — App mobile em Flutter, com consenso via eleição de líder.
-- **Sprint 4** — Deploy em containers, com transações distribuídas de verdade (2PC/Saga) resolvendo a limitação conhecida deste sprint.
