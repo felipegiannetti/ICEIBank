@@ -6,22 +6,23 @@ PASTA_DADOS = Path(__file__).resolve().parent.parent.parent / "data"
 
 
 class RegistroEventos:
-    def __init__(self, nome_agencia: str):
+    def __init__(self, nome_agencia: str, id_agencia: int):
         self.nome_agencia = nome_agencia
+        self.id_agencia = id_agencia
         PASTA_DADOS.mkdir(parents=True, exist_ok=True)
         self.caminho_arquivo = PASTA_DADOS / f"eventos-{nome_agencia}.jsonl"
 
-    def registrar(self, tipo: str, timestamp_lamport: int, detalhes: dict) -> dict:
+    def registrar(self, tipo: str, timestamp_vetorial: list[int], detalhes: dict) -> dict:
         evento = {
             "agencia": self.nome_agencia,
             "tipo": tipo,
-            "timestamp_lamport": timestamp_lamport,
+            "timestamp_vetorial": timestamp_vetorial,
             "hora_parede": datetime.now(timezone.utc).isoformat(),
             "detalhes": detalhes,
         }
         with open(self.caminho_arquivo, "a", encoding="utf-8") as arquivo:
             arquivo.write(json.dumps(evento, ensure_ascii=False) + "\n")
-        print(f"[Lamport {timestamp_lamport}] {tipo} {detalhes}")
+        print(f"[Vetor {timestamp_vetorial}] {tipo} {detalhes}")
         return evento
 
     def listar_eventos(self, id_conta: int, tipo: str | None = None, limit: int | None = None) -> list[dict]:
@@ -50,7 +51,12 @@ class RegistroEventos:
                 continue
             eventos.append(evento)
 
-        eventos.sort(key=lambda e: e["timestamp_lamport"], reverse=True)
+        # O vetor nao e totalmente ordenado (dois vetores podem ser
+        # concorrentes), mas a componente da propria agencia
+        # (timestamp_vetorial[id_agencia]) e sempre monotonicamente
+        # crescente para eventos desta agencia - e por isso uma ordenacao
+        # valida do mais recente para o mais antigo dentro do proprio log.
+        eventos.sort(key=lambda e: e["timestamp_vetorial"][self.id_agencia], reverse=True)
         if limit is not None:
             eventos = eventos[:limit]
         return eventos

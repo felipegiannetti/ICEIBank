@@ -33,10 +33,10 @@ async def transferir(
     try:
         conta_origem.consumir_limite_diario(body.valor)
     except LimiteExcedidoError as erro:
-        ts_falha = state.relogio.evento_local()
+        vetor_falha = state.relogio.evento_local()
         state.registro.registrar(
             "TRANSFERENCIA_REJEITADA_LIMITE",
-            ts_falha,
+            vetor_falha,
             {
                 "id_origem": body.id_origem,
                 "id_destino": body.id_destino,
@@ -50,11 +50,11 @@ async def transferir(
     agencia_destino = agencia_responsavel(body.id_destino)
 
     # O debito e sempre local, pois esta agencia e a dona da conta de origem.
-    ts_debito = state.relogio.evento_local()
+    vetor_debito = state.relogio.evento_local()
     conta_origem.saldo -= body.valor
     state.registro.registrar(
         "TRANSFERENCIA_DEBITO",
-        ts_debito,
+        vetor_debito,
         {"id_origem": body.id_origem, "id_destino": body.id_destino, "valor": body.valor},
     )
 
@@ -66,17 +66,19 @@ async def transferir(
             conta_origem.saldo += body.valor
             raise HTTPException(status_code=404, detail="Conta de destino não encontrada.")
 
-        ts_credito = state.relogio.evento_local()
+        vetor_credito = state.relogio.evento_local()
         conta_destino.saldo += body.valor
         state.registro.registrar(
             "TRANSFERENCIA_CREDITO",
-            ts_credito,
+            vetor_credito,
             {"id_origem": body.id_origem, "id_destino": body.id_destino, "valor": body.valor},
         )
         return TransferenciaResponse(mensagem="Transferência concluída (mesma agência).")
 
     # Caso entre agencias: chama a agencia de destino diretamente via REST.
-    ts_envio = state.relogio.ao_enviar()
+    # (Etapa transitoria da Parte B - a Parte C substitui esta chamada por
+    # publicacao assincrona numa fila do RabbitMQ.)
+    vetor_envio = state.relogio.ao_enviar()
     url_destino = next(a["url"] for a in AGENCIAS if a["id"] == agencia_destino)
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -84,7 +86,7 @@ async def transferir(
                 f"{url_destino}/contas/{body.id_destino}/creditar-remoto",
                 json={
                     "valor": body.valor,
-                    "timestamp_lamport": ts_envio,
+                    "timestamp_vetorial": vetor_envio,
                     "origem_agencia": state.id_agencia,
                 },
                 headers={"X-Internal-Secret": config.INTERNAL_SHARED_SECRET},
@@ -97,10 +99,10 @@ async def transferir(
         # de forma correta (garantir atomicidade mesmo sob falha) e o assunto do
         # Sprint 4, com uma transacao distribuida de verdade (2PC/Saga). Por
         # enquanto, so registramos a inconsistencia no log.
-        ts_falha = state.relogio.evento_local()
+        vetor_falha = state.relogio.evento_local()
         state.registro.registrar(
             "TRANSFERENCIA_FALHOU",
-            ts_falha,
+            vetor_falha,
             {"id_origem": body.id_origem, "id_destino": body.id_destino, "valor": body.valor, "erro": str(erro)},
         )
         raise HTTPException(
@@ -117,9 +119,10 @@ async def transferir(
 async def creditar_remoto(id_conta: int, body: CreditarRemotoRequest, request: Request):
     state = request.app.state
 
-    # Ao RECEBER uma mensagem de outra agencia, o relogio de Lamport e
-    # atualizado com base no timestamp recebido - e a regra 3 do algoritmo.
-    ts = state.relogio.ao_receber(body.timestamp_lamport)
+    # Ao RECEBER uma mensagem de outra agencia, o relogio vetorial e
+    # atualizado posicao a posicao com o vetor recebido - e a regra 3 do
+    # algoritmo.
+    vetor = state.relogio.ao_receber(body.timestamp_vetorial)
 
     conta = state.contas.obter(id_conta)
     if not conta:
@@ -128,7 +131,7 @@ async def creditar_remoto(id_conta: int, body: CreditarRemotoRequest, request: R
     conta.saldo += body.valor
     state.registro.registrar(
         "TRANSFERENCIA_CREDITO_REMOTO",
-        ts,
+        vetor,
         {"id_conta": id_conta, "valor": body.valor, "origem_agencia": body.origem_agencia},
     )
     return CreditoRemotoResponse(mensagem="Crédito remoto aplicado.", saldo_atual=conta.saldo)

@@ -24,7 +24,7 @@ class ValorRequest(BaseModel):
 
 class EventoHistoricoResponse(BaseModel):
     tipo: str
-    timestamp_lamport: int
+    timestamp_vetorial: list[int]
     hora_parede: str
     detalhes: dict
 

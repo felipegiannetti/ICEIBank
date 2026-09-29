@@ -83,7 +83,7 @@ export default function HistoricoPage() {
                       {info.sinal > 0 ? "+" : "−"} R$ {Number(info.valor).toFixed(2)}
                     </p>
                   )}
-                  <p className="extrato-lamport">Lamport {evento.timestamp_lamport}</p>
+                  <p className="extrato-lamport">Vetor [{evento.timestamp_vetorial.join(", ")}]</p>
                 </div>
               </div>
             );

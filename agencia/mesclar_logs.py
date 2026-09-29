@@ -16,12 +16,12 @@ def carregar_eventos() -> list[dict]:
 
 def main():
     eventos = carregar_eventos()
-    eventos.sort(key=lambda e: e["timestamp_lamport"])
+    eventos.sort(key=lambda e: e["hora_parede"])
 
-    print("=== Linha do tempo unificada (ordenada por relogio de Lamport) ===")
+    print("=== Linha do tempo unificada (ordenada por hora de parede) ===")
     for evento in eventos:
         print(
-            f"[Lamport {evento['timestamp_lamport']}] ({evento['hora_parede']}) "
+            f"[Vetor {evento['timestamp_vetorial']}] ({evento['hora_parede']}) "
             f"{evento['agencia']} - {evento['tipo']} {json.dumps(evento['detalhes'], ensure_ascii=False)}"
         )
 

@@ -13,7 +13,7 @@ class TransferenciaResponse(BaseModel):
 
 class CreditarRemotoRequest(BaseModel):
     valor: float = Field(gt=0)
-    timestamp_lamport: int
+    timestamp_vetorial: list[int]
     origem_agencia: int
 
 

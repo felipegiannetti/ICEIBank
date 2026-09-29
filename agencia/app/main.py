@@ -11,7 +11,7 @@ from app import config
 from app.controllers import auth_controller, contas_controller, transferencias_controller
 from app.models.conta import ContaStore
 from app.services.event_log import RegistroEventos
-from app.services.lamport_clock import RelogioLamport
+from app.services.relogio_vetorial import RelogioVetorial
 
 
 def criar_app() -> FastAPI:
@@ -34,8 +34,8 @@ def criar_app() -> FastAPI:
     )
 
     app.state.id_agencia = id_agencia
-    app.state.relogio = RelogioLamport()
-    app.state.registro = RegistroEventos(f"agencia-{id_agencia}")
+    app.state.relogio = RelogioVetorial(id_agencia, config.NUMERO_AGENCIAS)
+    app.state.registro = RegistroEventos(f"agencia-{id_agencia}", id_agencia)
     app.state.contas = ContaStore()
 
     app.include_router(auth_controller.router)
