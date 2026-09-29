@@ -1,28 +1,69 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ApiError, api } from "../api/client";
 import AppShell from "../components/AppShell";
 import ErrorBanner from "../components/ErrorBanner";
 import { useAuth } from "../context/AuthContext";
 
+const INTERVALO_POLLING_MS = 1000;
+const TENTATIVAS_MAX_POLLING = 15;
+
+const ROTULOS_STATUS = {
+  PENDENTE: "Publicada — aguardando confirmação da agência de destino...",
+  CONFIRMADA: "Confirmada — o crédito já foi aplicado na conta de destino.",
+  FALHOU: "A agência de destino não conseguiu aplicar o crédito (veja o motivo abaixo).",
+  CONCLUIDA: "Transferência concluída (mesma agência).",
+};
+
 export default function TransferenciaPage() {
   const { idConta } = useAuth();
   const [idDestino, setIdDestino] = useState("");
   const [valor, setValor] = useState("");
-  const [resultado, setResultado] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [motivo, setMotivo] = useState(null);
   const [erro, setErro] = useState(null);
   const [carregando, setCarregando] = useState(false);
+  const tentativasRef = useRef(0);
+
+  function pararEmBreve() {
+    tentativasRef.current = TENTATIVAS_MAX_POLLING;
+  }
+
+  async function acompanharStatus(idTransferencia) {
+    tentativasRef.current = 0;
+    const verificar = async () => {
+      tentativasRef.current += 1;
+      try {
+        const resposta = await api.statusTransferencia(idTransferencia);
+        setStatus(resposta.status);
+        setMotivo(resposta.motivo);
+        if (resposta.status === "PENDENTE" && tentativasRef.current < TENTATIVAS_MAX_POLLING) {
+          setTimeout(verificar, INTERVALO_POLLING_MS);
+        }
+      } catch {
+        // Se a consulta de status falhar (ex.: agencia reiniciou), so para
+        // de tentar - a mensagem "aguardando confirmação" ja fica visível.
+      }
+    };
+    verificar();
+  }
 
   async function aoSubmeter(evento) {
     evento.preventDefault();
     setErro(null);
-    setResultado(null);
+    setStatus(null);
+    setMotivo(null);
+    pararEmBreve();
     setCarregando(true);
     try {
       // O backend decide sozinho se e uma transferencia local ou entre
       // agencias (particionamento por id_conta % 3) - o frontend nao
-      // precisa saber a diferenca, so exibe o resultado.
+      // precisa saber a diferenca. Entre agencias, a entrega e assincrona
+      // (mensageria) - por isso o acompanhamento de status abaixo.
       const resposta = await api.transferir(idConta, parseInt(idDestino, 10), parseFloat(valor));
-      setResultado(resposta.mensagem);
+      setStatus(resposta.status);
+      if (resposta.id_transferencia) {
+        acompanharStatus(resposta.id_transferencia);
+      }
       setValor("");
       setIdDestino("");
     } catch (e) {
@@ -70,7 +111,12 @@ export default function TransferenciaPage() {
           </button>
         </form>
 
-        {resultado && <p className="sucesso" style={{ marginTop: 16 }}>{resultado}</p>}
+        {status && (
+          <p className={status === "FALHOU" ? "error-banner" : "sucesso"} style={{ marginTop: 16 }}>
+            {ROTULOS_STATUS[status] || status}
+            {motivo && ` (${motivo})`}
+          </p>
+        )}
         {erro && <div style={{ marginTop: 16 }}><ErrorBanner erro={erro} /></div>}
       </div>
     </AppShell>

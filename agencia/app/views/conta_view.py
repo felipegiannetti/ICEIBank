@@ -43,3 +43,15 @@ class LimiteResponse(BaseModel):
 
 class AtualizarLimiteRequest(BaseModel):
     novo_limite: float = Field(gt=0)
+
+
+class NotificacaoResponse(BaseModel):
+    id_conta: int
+    saldo_atual: float
+    limite: float
+    criado_em: str
+
+
+class NotificacoesResponse(BaseModel):
+    conta_id: int
+    notificacoes: list[NotificacaoResponse]

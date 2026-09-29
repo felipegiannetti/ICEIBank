@@ -40,6 +40,13 @@ class Conta:
             raise LimiteExcedidoError(self.limite_diario, self.uso_diario, valor)
         self.uso_diario += valor
 
+    def estornar_limite_diario(self, valor: float) -> None:
+        """Desfaz o consumo do limite diario de uma operacao que precisou
+        ser revertida (ex.: a publicacao da transferencia na mensageria
+        falhou de forma confirmada). Nao mexe em saldo - isso e
+        responsabilidade de quem chama."""
+        self.uso_diario = max(0.0, self.uso_diario - valor)
+
 
 class ContaStore:
     """Armazenamento em memoria das contas desta agencia (sem banco de dados, por design do Sprint 1)."""

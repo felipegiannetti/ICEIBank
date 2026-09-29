@@ -20,13 +20,23 @@ function descreverEvento(evento, idConta) {
       return { Icone: IconSwap, classe: "credito", titulo: "Transferência recebida", meta: `De conta ${d.id_origem}`, sinal: 1, valor: d.valor };
     case "TRANSFERENCIA_CREDITO_REMOTO":
       return { Icone: IconSwap, classe: "credito", titulo: "Transferência recebida", meta: `De outra agência (nº ${d.origem_agencia})`, sinal: 1, valor: d.valor };
+    case "TRANSFERENCIA_PUBLICADA":
+      return { Icone: IconSwap, classe: "debito", titulo: "Transferência publicada", meta: "Entrega assíncrona — aguardando confirmação", sinal: -1, valor: d.valor };
+    case "TRANSFERENCIA_CONFIRMADA":
+      return { Icone: IconSwap, classe: "credito", titulo: "Transferência confirmada", meta: "A agência de destino aplicou o crédito", sinal: null, valor: null };
+    case "CREDITO_FALHOU":
+      return { Icone: IconSwap, classe: "debito", titulo: "Crédito remoto falhou", meta: d.motivo || "A agência de destino não conseguiu aplicar o crédito", sinal: null, valor: null };
+    case "CREDITO_REMOTO_FALHOU":
+      return { Icone: IconSwap, classe: "debito", titulo: "Crédito rejeitado", meta: d.motivo || "Conta de destino não encontrada", sinal: null, valor: d.valor };
     case "TRANSFERENCIA_FALHOU":
-      return { Icone: IconSwap, classe: "debito", titulo: "Transferência falhou", meta: "Agência de destino indisponível", sinal: null, valor: d.valor };
+      return { Icone: IconSwap, classe: "debito", titulo: "Transferência falhou", meta: "Mensageria indisponível — débito estornado", sinal: null, valor: d.valor };
     case "SAQUE_REJEITADO_LIMITE":
     case "TRANSFERENCIA_REJEITADA_LIMITE":
       return { Icone: IconGauge, classe: "", titulo: "Operação rejeitada", meta: "Limite diário excedido", sinal: null, valor: d.valor };
     case "LIMITE_ATUALIZADO":
       return { Icone: IconGauge, classe: "", titulo: "Limite atualizado", meta: `Novo limite: R$ ${Number(d.novo_limite).toFixed(2)}`, sinal: null, valor: null };
+    case "ALERTA_SALDO_BAIXO_PUBLICADO":
+      return { Icone: IconGauge, classe: "debito", titulo: "Alerta de saldo baixo", meta: "Notificação publicada", sinal: null, valor: null };
     default:
       return { Icone: IconBank, classe: "", titulo: evento.tipo, meta: JSON.stringify(d), sinal: null, valor: null };
   }

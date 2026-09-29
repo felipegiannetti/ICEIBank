@@ -92,6 +92,10 @@ export const api = {
   transferir: (idOrigem, idDestino, valor) =>
     request("/transferencias", { method: "POST", body: { id_origem: idOrigem, id_destino: idDestino, valor } }),
 
+  statusTransferencia: (idTransferencia) => request(`/transferencias/${idTransferencia}`),
+
+  notificacoes: (id) => request(`/contas/${id}/notificacoes`),
+
   historico: (id, params = {}) => {
     const query = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ""))

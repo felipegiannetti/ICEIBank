@@ -19,9 +19,11 @@ export default function ContaPage() {
   const [conta, setConta] = useState(null);
   const [erro, setErro] = useState(null);
   const [visivel, setVisivel] = useState(true);
+  const [notificacao, setNotificacao] = useState(null);
 
   useEffect(() => {
     carregarSaldo();
+    carregarNotificacoes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -32,6 +34,19 @@ export default function ContaPage() {
       setConta(resposta);
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Falha inesperada ao conectar.");
+    }
+  }
+
+  async function carregarNotificacoes() {
+    try {
+      // Funcionalidade adicional: notificacao de saldo baixo, entregue de
+      // forma assincrona via mensageria - so mostramos a mais recente.
+      const resposta = await api.notificacoes(idConta);
+      if (resposta.notificacoes.length > 0) {
+        setNotificacao(resposta.notificacoes[resposta.notificacoes.length - 1]);
+      }
+    } catch {
+      // Notificacao e um extra - uma falha aqui nao deve atrapalhar o resto do dashboard.
     }
   }
 
@@ -56,6 +71,13 @@ export default function ContaPage() {
             Conta {conta.id} — {conta.nome_aluno}
           </p>
         </div>
+      )}
+
+      {notificacao && (
+        <p className="error-banner" style={{ marginBottom: 16 }}>
+          Saldo baixo: sua conta ficou com R$ {Number(notificacao.saldo_atual).toFixed(2)}, abaixo do limite de
+          alerta (R$ {Number(notificacao.limite).toFixed(2)}).
+        </p>
       )}
 
       <ErrorBanner erro={erro} />
