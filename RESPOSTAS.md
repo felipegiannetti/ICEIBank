@@ -122,3 +122,97 @@ Foram implementadas duas funcionalidades adicionais (alem do minimo de uma exigi
 **Por que essa escolha (e por que diario, nao por operacao):** entre as duas variantes sugeridas pelo roteiro (limite por operacao ou por dia), o limite diario foi escolhido por exigir estado que persiste entre chamadas (ao contrario de um limite por operacao, que e uma comparacao sem memoria) - e um exercicio mais realista de regra de negocio com estado, e mais parecido com como bancos de verdade implementam limite de saque diario.
 
 **Evidencia:** `evidencias/sprint1/extra-limite/funcionalidade-adicional-limite.png`.
+
+## Sprint 2
+
+### Nota de transparencia sobre uso de IA (exigida pelo roteiro)
+
+Este sprint foi desenvolvido com apoio extensivo do Claude (Anthropic, modelo Sonnet 5), usado nao so para rascunho/revisao, mas para a implementacao completa do backend (relogio vetorial, mensageria com RabbitMQ/pika, os 4 extras) e das mudancas no frontend, a partir do roteiro fornecido e de decisoes de design discutidas e aprovadas ao longo do processo (ex.: qual biblioteca de RabbitMQ usar, quais das 4 sugestoes de funcionalidade adicional implementar, como tratar o estorno de saldo quando a publicacao falha). Todo o codigo gerado foi executado e testado de ponta a ponta contra um RabbitMQ real (Docker local, com topologia validada via RabbitMQ Manager) antes de ser aceito - inclusive dois bugs reais foram encontrados e corrigidos durante essa validacao (ver Parte C e a funcionalidade de dead-letter queue abaixo). Declaro estar em condicoes de explicar e defender qualquer trecho entregue.
+
+### Parte B - Relogio vetorial (secao 6.4)
+
+**1. Com 3 agencias, o vetor tem 3 posicoes. Se o sistema crescesse para 10, o que aconteceria com o tamanho de cada vetor? Isso e um problema?**
+
+O vetor cresce linearmente com o numero de agencias (processos) do sistema - com 10 agencias, cada vetor (e cada mensagem que carrega um, via `ao_enviar`/`ao_receber`) passaria a ter 10 posicoes em vez de 3. Isso nao e um problema de corretude - o algoritmo funciona perfeitamente para qualquer N -, mas e um problema real de escalabilidade: o overhead de espaco cresce O(N) por mensagem e por evento gravado no log, o que fica caro (ou proibitivo) em sistemas com centenas ou milhares de processos - exatamente o cenario que motivou os artigos originais de Fidge e Mattern a proporem otimizacoes. Na pratica, sistemas de grande escala evitam carregar um vetor completo em toda mensagem usando aproximacoes (ex.: relogios de Lamport combinados com particionamento, dotted version vectors, ou rastrear so um subconjunto de processos "interessados" em vez do sistema inteiro).
+
+**2. `V1 = [3, 1, 0]` e `V2 = [3, 2, 0]`: qual aconteceu primeiro, ou sao concorrentes?**
+
+V1 aconteceu ANTES de V2. Comparando posicao a posicao: `3<=3`, `1<=2`, `0<=0` - V1 e menor ou igual a V2 em TODA posicao, e os vetores sao diferentes, entao V1 dominou. (Confirmado pelo teste automatizado `test_antes` em `tests/test_relogio_vetorial.py`.)
+
+**3. `V1 = [3, 1, 0]` e `V2 = [1, 3, 0]`: qual aconteceu primeiro, ou sao concorrentes?**
+
+Sao CONCORRENTES. Nem V1 domina V2 (`3 > 1` na posicao 0 falha a condicao `V1<=V2`), nem V2 domina V1 (`3 > 1` na posicao 1 falha a condicao `V2<=V1`) - nenhum dos dois "viu" tudo que o outro tinha visto, entao nenhum pode ter causado o outro. (Confirmado pelo teste `test_concorrentes`.)
+
+### Parte C - Publish/Subscribe entre agencias (secao 7.5)
+
+**1. No passo 4 (agencia volta), o que aconteceu exatamente quando ela reconectou? A mensagem "sumiu" por falha da mensageria, ou por outro motivo?**
+
+Reproduzi esse cenario com um RabbitMQ real (Docker local): derrubei a agencia 1, transferi da conta 0 para a conta 1 (resposta 200, mensagem publicada mesmo com a agencia 1 fora do ar), confirmei no RabbitMQ Manager que a mensagem ficou retida (`fila-agencia-1` com 1 mensagem *Ready*, 0 consumidores), e so entao subi a agencia 1 de novo **sem recriar a conta 1**. A mensagem NAO sumiu por falha da mensageria - pelo contrario, o RabbitMQ funcionou exatamente como esperado: a mensagem foi entregue automaticamente assim que o consumidor da agencia 1 reconectou. O problema foi outro: como as contas vivem so em memoria (um dict, sem persistencia em disco), quando o processo da agencia 1 morreu ele "esqueceu" a conta 1 - ela deixou de existir. Quando a mensagem finalmente chegou, o handler `aplicar_credito()` procurou a conta 1, nao encontrou, registrou o evento `CREDITO_REMOTO_FALHOU`, publicou uma confirmacao de falha de volta para a agencia de origem (que registrou `CREDITO_FALHOU`), e a propria mensagem foi rejeitada com `nack(requeue=False)`, caindo na dead-letter queue (`dlq-agencia-1`) em vez de ficar tentando reprocessar para sempre.
+
+**2. Compare com o Sprint 1 (chamada REST direta): o que melhorou, o que continua sendo um problema em aberto?**
+
+No Sprint 1, se a agencia de destino estivesse fora do ar no momento exato da chamada REST, a chamada falhava na hora (erro de conexao) e a mensagem era perdida definitivamente - nao havia nenhuma retencao ou retry. Agora, com RabbitMQ, a mensagem NUNCA se perde por indisponibilidade temporaria - ela fica gravada em disco pelo broker (fila durable + mensagem persistente, `delivery_mode=2`) ate alguem consumi-la, nao importa quanto tempo a agencia fique fora do ar. Isso resolve de verdade o problema da camada de transporte. O que continua em aberto e a diferenca entre "a mensagem nao se perde" e "o sistema esta correto": como o ESTADO da aplicacao (quais contas existem) ainda nao e durable, uma mensagem garantidamente entregue pode chegar a um destino que nao tem mais onde aplica-la. Ou seja, resolvemos a confiabilidade da entrega, mas nao a persistencia do estado - e essa lacuna so fecha de verdade com um banco de dados persistente (fora do escopo deste sprint) e, para garantir atomicidade completa entre debito e credito mesmo sob falha, com uma transacao distribuida de verdade (2PC/Saga), o assunto do Sprint 4.
+
+**3. O consumidor de mensagens processa creditos sem verificar token JWT. Isso e um problema de seguranca?**
+
+Em principio, sim - e uma superficie de ataque real: hoje, qualquer processo que consiga se conectar na mesma instancia RabbitMQ (com a `RABBITMQ_URL`) pode publicar diretamente uma mensagem com routing key `agencia.N.creditar` e a agencia de destino aplica o credito sem nenhuma verificacao de quem mandou aquilo - efetivamente "dinheiro de graca", sem nenhum debito correspondente em lugar nenhum. No ambiente de desenvolvimento (Docker local com `guest/guest`, ou uma instancia CloudAMQP pessoal cuja URL so o aluno conhece), o risco pratico e baixo porque ter acesso ao proprio broker ja equivale, na pratica, a "ser uma agencia" do sistema. Mas numa arquitetura de producao real isso seria um problema genuino, e a mitigacao seria parecida com a decisao tomada no Sprint 1 para a chamada REST direta entre agencias (o `X-Internal-Secret`): incluir na propria mensagem alguma forma de autenticacao/assinatura (ex.: um HMAC assinado com um segredo compartilhado so entre agencias) que o handler de credito verificasse antes de aplicar, ou isolar o acesso ao broker via rede/credenciais por agencia (cada agencia com seu proprio usuario RabbitMQ, com permissao de publicar so nas routing keys que faz sentido ela publicar).
+
+### Parte D - Linha do tempo causal (secao 8.3)
+
+**1. O que no relogio vetorial torna essa comparacao confiavel, algo que o Lamport nao permitia?**
+
+O relogio de Lamport reduz toda a historia causal de um evento a um unico numero escalar - comparando dois numeros, so da para concluir "um e maior" ou "sao iguais", nunca se um realmente descende causalmente do outro ou se e so uma coincidencia de contagem entre processos independentes. O relogio vetorial, em vez de colapsar tudo num numero, preserva uma "impressao digital" separada do progresso de CADA processo (uma posicao por agencia). Comparar dois vetores posicao a posicao permite verificar a condicao completa "V1 domina V2 em TODAS as posicoes" - o que so e verdade se V1 realmente incorporou (via as regras de `ao_enviar`/`ao_receber`) tudo que V2 tinha visto ate aquele momento. E exatamente essa comparacao completa, e nao parcial, que garante detectar concorrencia com certeza: se nenhum vetor domina o outro em todas as posicoes, e matematicamente impossivel que um tenha causado o outro.
+
+**2. Encontre, no seu teste, um par de eventos classificado como concorrente. Faz sentido?**
+
+No meu teste, o script apontou (entre varios outros) o par `[agencia-0] CRIAR_CONTA ([1,0,0])` x `[agencia-1] CRIAR_CONTA ([0,1,0])`. Faz todo sentido: sao o primeiro evento de cada uma dessas duas agencias, criadas por dois comandos `Invoke-RestMethod` disparados manualmente em sequencia rapida, sem nenhuma mensagem trocada entre as duas agencias ate aquele ponto - nenhuma das duas "sabe" que a outra existe nesse momento, entao nao ha absolutamente nenhuma relacao de causa e efeito entre a criacao de uma conta e a da outra. Ja o par formado pelo debito (`TRANSFERENCIA_PUBLICADA`, vetor `[3,0,0]`) e o credito remoto correspondente (`TRANSFERENCIA_CREDITO_REMOTO`, vetor `[3,2,0]`) da mesma transferencia **nao** aparece entre os concorrentes - o `--causais` confirma que a relacao entre os dois e sempre ANTES, como esperado (o debito e a causa direta do credito).
+
+**3. O algoritmo de comparacao e O(n^2). Isso seria um problema com milhoes de eventos? Como tornar mais escalavel?**
+
+Sim, seria um problema serio - com 1 milhao de eventos, comparar todos os pares significa ~5*10^11 comparacoes, inviavel de rodar do zero a cada analise. Para escalar, algumas ideias em alto nivel: (1) nao comparar todos os pares "as cegas" - restringir a analise a eventos dentro de uma janela de tempo relevante, ja que eventos muito distantes no tempo real quase sempre ja tem uma ordem clara; (2) indexar eventos por processo e usar a monotonicidade de cada componente do vetor para podar comparacoes obviamente decididas sem processar o vetor inteiro; (3) processar de forma incremental/streaming (mesclar_logs.py hoje sempre rele e reprocessa o historico inteiro do zero), guardando o resultado de comparacoes ja feitas em vez de refazer tudo a cada execucao; (4) em sistemas reais de grande escala, normalmente nao se faz uma varredura O(n^2) exaustiva - usam-se estruturas de dados especializadas (bancos orientados a eventos, CRDTs) que ja mantem a ordem parcial organizada internamente.
+
+### Funcionalidade adicional (Sprint 2)
+
+O roteiro deste sprint exige pelo menos uma funcionalidade adicional (secao 2.1); foram implementadas as **4** sugeridas no roteiro, cada uma com commit e evidencia proprios.
+
+#### 1. Dead-letter queue (DLQ)
+
+**O que faz:** quando um credito remoto falha porque a conta de destino nao existe (o cenario da Parte C - agencia reiniciou e perdeu o estado em memoria), a mensagem correspondente e desviada para uma fila separada (`dlq-agencia-N`) em vez de ser descartada silenciosamente. Dois endpoints internos (protegidos pelo mesmo `X-Internal-Secret` do Sprint 1): `GET /interno/dlq` mostra (sem remover) as mensagens paradas, e `POST /interno/dlq/reprocessar` tenta reaplicar cada uma - util depois de recriar a conta que faltava.
+
+**Como foi implementada:** a `fila-agencia-N` (a fila normal de credito) e declarada com os argumentos `x-dead-letter-exchange`/`x-dead-letter-routing-key` apontando para uma segunda exchange (`iceibank.dlx`) e uma fila `dlq-agencia-N`. Quando o handler `aplicar_credito()` decide rejeitar a mensagem (`nack(requeue=False)`, porque a conta nao existe), o proprio RabbitMQ redireciona automaticamente a mensagem para a DLQ - nenhum codigo especifico de "mover para a DLQ" precisou ser escrito, so a topologia correta. O reprocessamento reaproveita o MESMO handler `aplicar_credito()` usado pelo consumidor normal, garantindo que o comportamento (incluindo o dedupe por `id_transferencia` e a confirmacao publicada de volta) seja identico nos dois caminhos.
+
+**Por que essa escolha:** e a funcionalidade que mais fecha o ciclo da limitacao conhecida descrita na propria secao 2 do roteiro (agencia reinicia, perde o estado, credito nao encontra onde ser aplicado) - em vez de so documentar o problema, ele fica com um caminho de recuperacao real.
+
+**Bug real encontrado e corrigido durante o teste:** a primeira versao de `espiar_fila()`/`reprocessar_fila()` devolvia cada mensagem a fila (`nack` com `requeue=True`) uma a uma, dentro do mesmo loop de leitura - como so havia 1 mensagem de verdade na fila de teste, a mesma mensagem era lida e devolvida repetidamente ate o limite do loop, aparecendo 20 vezes duplicada na resposta de `GET /interno/dlq`. Corrigido consultando antes, via `queue_declare(passive=True)`, quantas mensagens existem de verdade, e so devolvendo todas ao final (depois de ler exatamente essa quantidade).
+
+**Evidencia:** `evidencias/sprint2/extra-dlq/funcionalidade-adicional-dlq.png`.
+
+#### 2. Confirmacao de entrega
+
+**O que faz:** depois que a agencia de destino aplica (ou falha em aplicar) um credito remoto, ela publica um segundo evento de confirmacao de volta para a agencia de origem, que atualiza o status da transferencia (`PENDENTE` -> `CONFIRMADA` ou `FALHOU`) e registra isso no proprio log. O frontend consulta `GET /transferencias/{id_transferencia}` em polling (a cada 1s, por ate 15s) ate a transferencia sair de `PENDENTE`, mostrando "publicada - aguardando confirmacao" e depois "confirmada" (ou o motivo da falha) sem o usuario precisar atualizar a pagina.
+
+**Como foi implementada:** a agencia de origem publica na routing key `agencia.<destino>.creditar` e passa a **tambem** consumir sua propria fila `fila-confirmacoes-agencia-N`, ligada a routing key `agencia.N.confirmacao`. A agencia de destino, apos processar o credito (com sucesso ou nao), publica de volta nessa routing key com `{sucesso, motivo, vetor_envio}` - o vetor viaja junto, entao a origem executa `ao_receber()` ao processar a confirmacao, fechando o ciclo causal completo (debito -> publicacao -> credito remoto -> confirmacao) no relogio vetorial.
+
+**Por que essa escolha:** sem isso, a resposta HTTP de uma transferencia entre agencias vira so "foi publicada", e o usuario nunca saberia se o dinheiro realmente chegou (ou por que nao chegou) sem ir olhar o extrato da outra agencia manualmente - a confirmacao fecha esse ciclo de forma genuinamente assincrona, sem o cliente precisar ficar re-consultando as duas agencias.
+
+**Evidencia:** `evidencias/sprint2/extra-confirmacao/funcionalidade-adicional-confirmacao.png`.
+
+#### 3. Fila de auditoria
+
+**O que faz:** um processo independente das 3 agencias (`python auditor.py`, nao participa do particionamento nem do relogio vetorial) escuta TUDO que e publicado na exchange `iceibank.eventos` - credito remoto, confirmacoes e alertas de saldo baixo, de qualquer agencia - e mantem um log central (`data/auditoria.jsonl`), alem de imprimir cada evento no console.
+
+**Como foi implementada:** a exchange principal e do tipo *topic*, entao uma fila ligada com a routing key coringa `#` recebe copia de toda mensagem publicada nela, seja qual for a routing key especifica - o auditor nao precisa saber de antemao quais routing keys existem hoje ou vao existir no futuro (uma quinta funcionalidade que publicasse em outra routing key qualquer ja seria capturada automaticamente, sem alterar o auditor).
+
+**Por que essa escolha:** e a demonstracao mais direta do padrao Publish/Subscribe do roteiro - "quem publica nao sabe (nem precisa saber) quem vai consumir" -, mostrando um consumidor inteiramente novo entrando no sistema sem qualquer mudanca nas 3 agencias existentes.
+
+**Evidencia:** `evidencias/sprint2/extra-auditoria/funcionalidade-adicional-auditoria.png`.
+
+#### 4. Notificacao de saldo baixo
+
+**O que faz:** sempre que um debito (saque, ou o lado de origem de uma transferencia) faz o saldo de uma conta cruzar para baixo de um limite configuravel (`ICEI_SALDO_BAIXO_LIMITE`, default R$ 50), a agencia publica um alerta num topico separado (`alerta.saldo_baixo.N`). O dashboard do frontend mostra um aviso visivel com o saldo atual e o limite.
+
+**Como foi implementada:** o alerta so dispara no CRUZAMENTO da fronteira (`saldo_antes >= limite > saldo_depois`), nunca a cada operacao - assim uma conta que ja esta abaixo do limite nao gera um alerta novo a cada saque subsequente. A propria agencia que publica o alerta tambem o consome (fila `fila-alertas-agencia-N`), guardando em memoria por conta; `GET /contas/{id}/notificacoes` expoe isso ao frontend. Mesmo sendo a mesma agencia publicando e consumindo, o alerta continua sendo uma mensagem de verdade (nao uma chamada de funcao direta) - e por isso que o auditor (funcionalidade 3) tambem consegue ve-lo sem qualquer acoplamento com essa funcionalidade.
+
+**Por que essa escolha:** e a funcionalidade que mais reaproveita a infraestrutura de mensageria ja construida (mesma exchange, mesmo padrao de publicar/consumir) para resolver um problema de produto genuino (avisar a pessoa usuaria antes que o saldo acabe), sem precisar de nenhuma peca de infraestrutura nova.
+
+**Evidencia:** `evidencias/sprint2/extra-saldo-baixo/funcionalidade-adicional-saldo-baixo.png`.
