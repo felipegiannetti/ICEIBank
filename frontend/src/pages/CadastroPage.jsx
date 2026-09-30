@@ -45,7 +45,7 @@ export default function CadastroPage() {
           </p>
         </div>
         <p style={{ position: "relative", zIndex: 1, fontSize: "0.78rem", opacity: 0.7 }}>
-          Sprint 1 · REST/MVC + Relógio de Lamport
+          Sprint 2 · Mensageria (Pub/Sub) + Relógio Vetorial
         </p>
       </div>
 

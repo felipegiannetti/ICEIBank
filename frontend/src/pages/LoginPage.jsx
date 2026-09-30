@@ -42,12 +42,13 @@ export default function LoginPage() {
         <div className="auth-visual-conteudo">
           <h2>Seu dinheiro, em qualquer agência, sempre sincronizado.</h2>
           <p>
-            Contas particionadas entre agências, transferências locais e entre agências, e cada
-            operação carimbada com relógio lógico de Lamport para manter a ordem causal do sistema.
+            Contas particionadas entre agências, transferências entre agências entregues de forma
+            assíncrona via RabbitMQ, e cada operação carimbada com relógio vetorial para distinguir
+            causalidade real de eventos genuinamente concorrentes.
           </p>
         </div>
         <p style={{ position: "relative", zIndex: 1, fontSize: "0.78rem", opacity: 0.7 }}>
-          Sprint 1 · REST/MVC + Relógio de Lamport
+          Sprint 2 · Mensageria (Pub/Sub) + Relógio Vetorial
         </p>
       </div>
 

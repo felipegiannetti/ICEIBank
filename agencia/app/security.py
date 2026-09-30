@@ -51,8 +51,10 @@ def exigir_dono(id_conta: int, id_autenticado: int = Depends(get_id_conta_autent
 
 
 def verificar_segredo_interno(request: Request) -> None:
-    """Usado apenas na chamada agencia-a-agencia (creditar-remoto) - nao ha
-    uma "conta" fazendo essa chamada, entao ela nao usa JWT de usuario."""
+    """Usado nas rotas administrativas /interno/* (dead-letter queue, Sprint
+    2) - nao ha uma "conta" fazendo essa chamada, entao ela nao usa JWT de
+    usuario. No Sprint 1 tambem protegia a chamada REST agencia-a-agencia
+    (creditar-remoto), removida no Sprint 2 em favor da mensageria."""
     segredo = request.headers.get("X-Internal-Secret")
     if segredo != config.INTERNAL_SHARED_SECRET:
         raise HTTPException(status_code=401, detail="Chamada interna não autorizada.")
