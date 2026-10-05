@@ -216,3 +216,22 @@ O roteiro deste sprint exige pelo menos uma funcionalidade adicional (secao 2.1)
 **Por que essa escolha:** e a funcionalidade que mais reaproveita a infraestrutura de mensageria ja construida (mesma exchange, mesmo padrao de publicar/consumir) para resolver um problema de produto genuino (avisar a pessoa usuaria antes que o saldo acabe), sem precisar de nenhuma peca de infraestrutura nova.
 
 **Evidencia:** `evidencias/sprint2/extra-saldo-baixo/funcionalidade-adicional-saldo-baixo.png`.
+
+### Evidencias do Sprint 2 (indice)
+
+Todos os prints foram feitos com a aplicacao rodando contra um RabbitMQ gerenciado no CloudAMQP (3 agencias + frontend + auditor), com `Get-Date` visivel no terminal ou a hora do sistema na barra de tarefas.
+
+| Pasta | Arquivo | O que mostra |
+|---|---|---|
+| `parte-a-rabbitmq/` | `rabbitmq-topologia-exchanges.png` | Exchanges `iceibank.eventos` e `iceibank.dlx` (topic, duraveis) no RabbitMQ Manager |
+| `parte-a-rabbitmq/` | `rabbitmq-topologia-filas.png` | Filas por agencia (`fila-agencia-N`, com DLX/DLK), DLQs, confirmacoes, alertas e auditoria |
+| `parte-c-mensageria/` | `transferencia-assincrona.png` | Transferencia 0 -> 1 publicada (`PENDENTE`) e depois `CONFIRMADA`; logs das duas agencias com os vetores; saldo da conta 1 = 130 |
+| `parte-c-mensageria/` | `resiliencia-fila-manager.png` | Agencia 1 fora do ar: `fila-agencia-1` retem 1 mensagem (*Ready*) |
+| `parte-c-mensageria/` | `resiliencia-fila.png` | Transferencia respondida com 200 (`PENDENTE`) e, quando a agencia 1 volta, `CREDITO_REMOTO_FALHOU` (conta nao encontrada) |
+| `parte-c-mensageria/` | `regressao-frontend.png` | Extrato no frontend (login por JWT) com o vetor de cada evento |
+| `parte-d-linha-do-tempo/` | `linha-do-tempo-causal.png` | `mesclar_logs.py --causais`: pares concorrentes entre agencias e pares debito -> credito classificados como `ANTES` |
+| `extra-dlq/` | `funcionalidade-adicional-dlq.png` | `GET /interno/dlq` com a mensagem parada em `dlq-agencia-1` |
+| `extra-dlq/` | `funcionalidade-adicional-dlq-reprocessar.png` | Conta recriada, `POST /interno/dlq/reprocessar` (`aplicadas: 1`) e saldo da conta 1 = 115 |
+| `extra-confirmacao/` | `funcionalidade-adicional-confirmacao.png` | Frontend exibindo "Confirmada — o credito ja foi aplicado na conta de destino" |
+| `extra-auditoria/` | `funcionalidade-adicional-auditoria.png` | `auditor.py` capturando `agencia.1.creditar` e `agencia.0.confirmacao` |
+| `extra-saldo-baixo/` | `funcionalidade-adicional-saldo-baixo.png` | Dashboard com o aviso de saldo baixo (R$ 40,00, abaixo do limite de R$ 50,00) |
