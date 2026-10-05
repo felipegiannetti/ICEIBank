@@ -332,6 +332,7 @@ evidencias/
 │   ├── extra-historico/
 │   └── extra-limite/
 └── sprint2/
+    ├── apresentacao-sprint2.mp4     # vídeo de apresentação (via Git LFS)
     ├── parte-a-rabbitmq/
     ├── parte-c-mensageria/
     ├── parte-d-linha-do-tempo/
