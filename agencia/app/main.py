@@ -10,8 +10,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import config
-from app.controllers import auth_controller, contas_controller, interno_controller, transferencias_controller
+from app.controllers import (
+    auth_controller,
+    bully_controller,
+    contas_controller,
+    interno_controller,
+    transferencias_controller,
+)
 from app.models.conta import ContaStore
+from app.services.bully_service import ServicoBully
 from app.services.event_log import RegistroEventos
 from app.services.handlers import aplicar_credito, processar_alerta, processar_confirmacao
 from app.services.mensageria import Consumidor, Publicador
@@ -54,6 +61,11 @@ def criar_app() -> FastAPI:
             consumidor.iniciar()
         app.state.consumidores = consumidores
 
+        # Sprint 3 - eleicao de lider (Bully): dispara a eleicao inicial numa
+        # thread separada (nao bloqueia o startup do uvicorn, ja que pode
+        # levar ate BULLY_TIMEOUT_HTTP segundos por agencia de ID maior).
+        threading.Thread(target=app.state.bully.iniciar_eleicao, daemon=True).start()
+
         yield
 
         for consumidor in consumidores:
@@ -76,6 +88,7 @@ def criar_app() -> FastAPI:
     app.state.relogio = RelogioVetorial(id_agencia, config.NUMERO_AGENCIAS)
     app.state.registro = RegistroEventos(f"agencia-{id_agencia}", id_agencia)
     app.state.contas = ContaStore()
+    app.state.bully = ServicoBully(app, id_agencia, config.AGENCIAS)
 
     # Estado em memoria introduzido no Sprint 2:
     # - lock: protege contas/relogio/transferencias contra a corrida entre
@@ -96,6 +109,7 @@ def criar_app() -> FastAPI:
     app.include_router(contas_controller.router)
     app.include_router(transferencias_controller.router)
     app.include_router(interno_controller.router)
+    app.include_router(bully_controller.router)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):

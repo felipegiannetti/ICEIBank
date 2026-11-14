@@ -42,6 +42,11 @@ EXCHANGE_DLX = "iceibank.dlx"
 # a agencia publica um alerta (so no cruzamento, nao a cada operacao).
 SALDO_BAIXO_LIMITE = float(os.environ.get("ICEI_SALDO_BAIXO_LIMITE", "50"))
 
+# Sprint 3 - eleicao de lider (Bully). Timeout por chamada HTTP entre
+# agencias (eleicao/coordenador). Configuravel por variavel de ambiente
+# (funcionalidade adicional).
+BULLY_TIMEOUT_HTTP = float(os.environ.get("ICEI_BULLY_TIMEOUT_HTTP", "1.0"))
+
 
 def agencia_responsavel(id_conta: int) -> int:
     return id_conta % NUMERO_AGENCIAS
