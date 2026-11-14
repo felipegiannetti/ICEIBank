@@ -41,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               DropdownButtonFormField<String>(
-                value: auth.agenciaUrl,
+                initialValue: auth.agenciaUrl,
                 decoration: const InputDecoration(labelText: 'Agência'),
                 items: agencias
                     .map((a) => DropdownMenuItem(value: a.url, child: Text('Agência ${a.id} (${a.url})')))

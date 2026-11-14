@@ -25,7 +25,7 @@ class SaldoCard extends StatelessWidget {
               Chip(
                 avatar: const Icon(Icons.sync_problem, size: 18),
                 label: Text('$pendentes operação(ões) pendente(s) de sincronização'),
-                backgroundColor: Colors.orange.withOpacity(0.15),
+                backgroundColor: Colors.orange.withValues(alpha: 0.15),
               ),
             ],
           ],

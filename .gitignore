@@ -8,17 +8,13 @@ agencia/data/*.jsonl
 frontend/node_modules/
 frontend/dist/
 
-# Flutter (app_mobile) - gerado por `flutter create .`/`flutter build`, nao versionado
-app_mobile/.dart_tool/
-app_mobile/.flutter-plugins
-app_mobile/.flutter-plugins-dependencies
-app_mobile/.packages
-app_mobile/build/
+# Flutter (app_mobile) - app_mobile/.gitignore (gerado por `flutter create .`)
+# ja cobre .dart_tool/, build/, .idea/, *.iml etc. dentro de app_mobile/.
+# Alem disso, nao versionado:
 app_mobile/android/.gradle/
 app_mobile/android/local.properties
 app_mobile/ios/Pods/
 app_mobile/ios/.symlinks/
-app_mobile/*.iml
 
 # Env / secrets
 .env
