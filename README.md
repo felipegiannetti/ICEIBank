@@ -5,8 +5,8 @@ Banco simplificado, particionado em agências independentes, desenvolvido como p
 | Sprint | Unidade da ementa | Tecnologia | Conceito de sistemas distribuídos |
 |---|---|---|---|
 | 1 | Desenvolvimento Web | API REST / MVC | Relógio lógico de Lamport |
-| **2 (este)** | Comunicação indireta | Mensageria / Pub-Sub | Relógio vetorial |
-| 3 | Desenvolvimento Móvel | App Flutter | Consenso (eleição de líder) |
+| 2 | Comunicação indireta | Mensageria / Pub-Sub | Relógio vetorial |
+| **3 (este)** | Desenvolvimento Móvel | App Flutter | Consenso (eleição de líder) |
 | 4 | Computação em Nuvem | Containers | Transações distribuídas (2PC/Saga) |
 
 ---
@@ -21,6 +21,9 @@ Banco simplificado, particionado em agências independentes, desenvolvido como p
 - [Endpoints da API](#endpoints-da-api)
 - [Relógio vetorial](#relógio-vetorial)
 - [Mensageria (RabbitMQ)](#mensageria-rabbitmq)
+- [Eleição de líder (Bully)](#eleição-de-líder-bully)
+- [App mobile (Flutter)](#app-mobile-flutter)
+- [Sincronização offline-first](#sincronização-offline-first)
 - [Autenticação (JWT)](#autenticação-jwt)
 - [Funcionalidades adicionais](#funcionalidades-adicionais)
 - [Frontend](#frontend)
@@ -37,11 +40,11 @@ Banco simplificado, particionado em agências independentes, desenvolvido como p
 
 Cada agência do banco é um serviço REST independente (arquitetura MVC), com endpoints para criar conta, consultar saldo, depositar, sacar e transferir, autenticação via **JWT** e um **frontend web em React**. Toda operação era registrada com um **relógio lógico de Lamport**. A transferência entre agências era uma chamada REST síncrona direta — se a agência de destino estivesse fora do ar, a chamada falhava na hora e o débito já aplicado ficava "pendurado" (inconsistência conhecida e proposital).
 
-### Sprint 2 (este)
+### Sprint 2 (concluído)
 
 Substitui a chamada REST direta entre agências por **mensageria assíncrona (RabbitMQ, Publish/Subscribe)**: a agência de origem publica um evento numa exchange, e a agência de destino consome quando puder — mesmo que esteja temporariamente fora do ar. Como consequência direta dessa mudança, o **relógio de Lamport dá lugar ao relógio vetorial**, que permite determinar com certeza se dois eventos são causalmente relacionados ou genuinamente concorrentes.
 
-O que este sprint entrega:
+O que esse sprint entregou:
 - RabbitMQ configurado (exchange `topic`, uma fila por agência, dead-letter queue).
 - Relógio vetorial substituindo o relógio de Lamport.
 - Transferência entre agências publicada como mensagem, consumida de forma assíncrona.
@@ -49,7 +52,22 @@ O que este sprint entrega:
 - Quatro funcionalidades adicionais: dead-letter queue, confirmação de entrega, fila de auditoria e notificação de saldo baixo.
 - Particionamento, JWT e o frontend do Sprint 1 continuam funcionando (regressão verificada).
 
-O que este sprint melhora, e o que ainda não resolve: a mensageria durável resolve o problema mais visível do Sprint 1 — uma mensagem publicada para uma agência fora do ar não se perde mais, fica retida na fila até a agência voltar. Mas isso **não** resolve tudo: como as contas ainda vivem em memória (sem persistência em disco/banco), se a agência de destino **reiniciar** antes de consumir a mensagem, a conta que deveria receber o crédito não existe mais quando a agência volta — a mensagem chega, mas não encontra onde aplicar o valor (esse cenário exato é reproduzido e documentado; ver [Limitação conhecida](#limitação-conhecida-e-proposital)).
+O que esse sprint melhorou, e o que ainda não resolveu: a mensageria durável resolve o problema mais visível do Sprint 1 — uma mensagem publicada para uma agência fora do ar não se perde mais, fica retida na fila até a agência voltar. Mas isso **não** resolve tudo: como as contas ainda vivem em memória (sem persistência em disco/banco), se a agência de destino **reiniciar** antes de consumir a mensagem, a conta que deveria receber o crédito não existe mais quando a agência volta — a mensagem chega, mas não encontra onde aplicar o valor (esse cenário exato é reproduzido e documentado; ver [Limitação conhecida](#limitação-conhecida-e-proposital)).
+
+### Sprint 3 (este)
+
+As 3 agências, que até aqui operavam como pares, passam a eleger uma **líder** entre si usando o **algoritmo de Bully** (GARCIA-MOLINA, 1982): a agência de maior ID entre as ativas sempre vence, e um **heartbeat** periódico detecta a queda da líder e dispara failover automático. Nasce também o primeiro cliente mobile do projeto — um **app Flutter** que reaproveita a mesma API REST do frontend web, com um painel mostrando a líder atual em tempo real. Por ser o primeiro cliente mobile, o app segue o paradigma **offline-first**: continua funcionando com dados em cache e registra operações mesmo sem conexão, sincronizando tudo automaticamente ao reconectar — reaproveitando o **relógio vetorial** do Sprint 2, agora para detectar conflitos entre uma operação feita offline e mudanças que aconteceram na agência nesse meio-tempo.
+
+O que este sprint entrega:
+- Algoritmo de Bully (eleição + coordenador) entre as 3 agências, com heartbeat e failover automático.
+- Um script (`historico_lideranca.py`) que reconstrói a linha do tempo de lideranças a partir dos logs das 3 agências.
+- Um app Flutter com o fluxo bancário completo (login, saldo, depósito, saque, transferência) e um painel de liderança atualizado automaticamente.
+- Um endpoint de sincronização (`POST /contas/{id}/sincronizar`) que usa o relógio vetorial para detectar conflitos entre operações offline e mudanças concorrentes na agência.
+- Um app Flutter offline-first: armazenamento local (Hive), fila de operações pendentes, UI otimista e sincronização automática ao reconectar.
+- Três funcionalidades adicionais: eleição sob demanda, indicador de agências ativas e histórico de líderes na tela.
+- Particionamento, JWT, mensageria/relógio vetorial e o frontend web dos Sprints 1/2 continuam funcionando (regressão verificada).
+
+O que este sprint deliberadamente **não** resolve ainda: a líder eleita é, por enquanto, só informativa — nenhuma operação do banco passa a ser coordenada por ela. É exatamente o papel que ela vai assumir no **Sprint 4**, coordenando transações distribuídas (2PC) entre agências. Da mesma forma, a detecção de conflito offline-first é propositalmente simples: sinaliza que algo mudou na agência enquanto o app estava offline, mas não tenta resolver o conflito sozinha (ver [Sincronização offline-first](#sincronização-offline-first)).
 
 ---
 
@@ -71,14 +89,18 @@ conta 2 → agência 2        conta 5 → agência 2
 agencia/app/
 ├── models/          → dados e regras de domínio (Conta, ContaStore, limite diário)
 ├── views/           → schemas Pydantic de request/response (camada de serialização)
-├── controllers/     → rotas FastAPI (auth, contas, transferências, interno)
-└── services/        → relógio vetorial, mensageria (RabbitMQ), handlers, registro de eventos
+├── controllers/     → rotas FastAPI (auth, contas, transferências, interno, bully)
+└── services/        → relógio vetorial, mensageria (RabbitMQ), handlers, bully, histórico de liderança, registro de eventos
 ```
 
 ### Transferência local vs. entre agências
 
 - **Local** (origem e destino na mesma agência): débito e crédito acontecem no mesmo processo, carimbados com `evento_local()`.
 - **Entre agências**: a agência de origem debita localmente, publica um evento na exchange do RabbitMQ (`ao_enviar()`) e responde `200` informando que a transferência foi **publicada** (`status: PENDENTE`) — a aplicação do crédito é assíncrona. A agência de destino consome a mensagem quando puder (`ao_receber()`), aplica o crédito e publica uma confirmação de volta, que a origem consome e usa para atualizar o status da transferência (`CONFIRMADA`/`FALHOU`). Se a **publicação** falhar de forma confirmada (broker fora do ar, mensagem não roteável), o débito e o consumo do limite diário são estornados na hora.
+
+### Consenso: eleição de líder (Sprint 3)
+
+As 3 agências continuam sendo pares para as operações bancárias — a eleição de líder (ver [Eleição de líder (Bully)](#eleição-de-líder-bully)) é um mecanismo de consenso independente, ainda só informativo (nenhuma operação é coordenada pela líder nesta sprint; isso é o Sprint 4).
 
 ---
 
@@ -90,6 +112,7 @@ agencia/app/
 - [bcrypt](https://pypi.org/project/bcrypt/) — hash de senha
 - [pika](https://pika.readthedocs.io/) — cliente RabbitMQ (AMQP)
 - [python-dotenv](https://pypi.org/project/python-dotenv/) — carrega `agencia/.env`
+- [httpx](https://www.python-httpx.org/) — chamadas HTTP entre agências (eleição de líder, heartbeat)
 - Armazenamento em memória (sem banco de dados, por escopo do projeto)
 
 **Infraestrutura**
@@ -99,6 +122,13 @@ agencia/app/
 - [React 18](https://react.dev/) + [Vite](https://vitejs.dev/)
 - [react-router-dom](https://reactrouter.com/)
 - CSS puro (sem framework), com paleta azul/roxo/branco e componentes inspirados em apps bancários
+
+**App mobile (Sprint 3)**
+- [Flutter](https://flutter.dev/) 3.x / Dart 3.x
+- [provider](https://pub.dev/packages/provider) — gerenciamento de estado (`ChangeNotifier`)
+- [http](https://pub.dev/packages/http) — cliente HTTP
+- [hive](https://pub.dev/packages/hive) / [hive_flutter](https://pub.dev/packages/hive_flutter) — armazenamento local (cache + fila offline)
+- [connectivity_plus](https://pub.dev/packages/connectivity_plus) — detecção de conectividade
 
 ---
 
@@ -110,34 +140,48 @@ ICEIBank/
 │   ├── requirements.txt
 │   ├── .env.example                # variáveis de ambiente (copie para .env)
 │   ├── app/
-│   │   ├── main.py                 # monta a app, CORS, lifespan (publicador + consumidores)
-│   │   ├── config.py                # particionamento, portas, segredos, topologia RabbitMQ
+│   │   ├── main.py                 # monta a app, CORS, lifespan (publicador + consumidores + bully)
+│   │   ├── config.py                # particionamento, portas, segredos, topologia RabbitMQ, timeouts do Bully
 │   │   ├── security.py              # JWT, hash de senha, autorização por dono
 │   │   ├── models/conta.py          # Conta, ContaStore, limite diário
-│   │   ├── views/                   # schemas Pydantic (request/response)
-│   │   ├── controllers/             # rotas: auth, contas, transferências, interno (DLQ)
+│   │   ├── views/                   # schemas Pydantic (request/response), inclui bully_view.py
+│   │   ├── controllers/             # rotas: auth, contas, transferências, interno (DLQ), bully
 │   │   └── services/
-│   │       ├── relogio_vetorial.py  # RelogioVetorial + comparar_vetores
-│   │       ├── event_log.py         # RegistroEventos (JSONL)
-│   │       ├── mensageria.py        # Publicador, Consumidor, topologia RabbitMQ
-│   │       └── handlers.py          # handlers de crédito/confirmação/alerta
+│   │       ├── relogio_vetorial.py        # RelogioVetorial + comparar_vetores + obter_vetor_atual
+│   │       ├── event_log.py               # RegistroEventos (JSONL)
+│   │       ├── mensageria.py              # Publicador, Consumidor, topologia RabbitMQ
+│   │       ├── handlers.py                # handlers de crédito/confirmação/alerta
+│   │       ├── bully_service.py           # algoritmo de Bully + heartbeat (Sprint 3)
+│   │       └── historico_lideranca.py     # reconstrói a linha do tempo de líderes (Sprint 3)
 │   ├── data/                        # logs *.jsonl gerados em runtime (não versionado)
 │   ├── mesclar_logs.py              # linha do tempo unificada + pares concorrentes
+│   ├── historico_lideranca.py       # script standalone - linha do tempo de líderes (Sprint 3)
 │   ├── auditor.py                   # consumidor independente (fila de auditoria)
-│   └── tests/                       # testes unitários (relógio vetorial)
-├── frontend/                        # Frontend — React + Vite
+│   └── tests/                       # testes unitários (relógio vetorial, bully, sincronização, histórico)
+├── frontend/                        # Frontend web — React + Vite
 │   └── src/
 │       ├── api/client.js            # cliente HTTP (injeta JWT, trata erros)
 │       ├── context/AuthContext.jsx
 │       ├── components/              # AppShell (sidebar), ícones, seletor de agência
 │       └── pages/                   # login, cadastro, conta, depósito, saque,
 │                                     # transferência, extrato, limite, perfil
+├── app_mobile/                       # App mobile — Flutter (Sprint 3)
+│   ├── pubspec.yaml
+│   └── lib/
+│       ├── config/agencias.dart     # espelha agencia/app/config.py (AGENCIAS)
+│       ├── models/                  # Conta, LiderInfo, AgenciaStatus, EventoLideranca, OperacaoPendente
+│       ├── services/                # api_client, auth, conta, bully, storage (Hive), connectivity
+│       ├── providers/                # auth, conta (+ offline-first), fila_pendente, lider
+│       ├── screens/                  # login, home, depósito, saque, transferência, painel de liderança
+│       └── widgets/
 ├── evidencias/
 │   ├── sprint1/                     # prints + vídeo do Sprint 1
-│   └── sprint2/                     # prints + vídeo do Sprint 2, por parte do roteiro
+│   ├── sprint2/                     # prints + vídeo do Sprint 2, por parte do roteiro
+│   └── sprint3/                     # prints + vídeo do Sprint 3, por parte do roteiro
 ├── RESPOSTAS.md                     # respostas conceituais + decisões de design
 ├── ROTEIRO_SPRINT_1.md              # enunciado original do Sprint 1
-└── ROTEIRO_SPRINT_2.md              # enunciado original do Sprint 2
+├── ROTEIRO_SPRINT_2.md              # enunciado original do Sprint 2
+└── ROTEIRO_SPRINT_3.md              # enunciado original do Sprint 3
 ```
 
 ---
@@ -239,6 +283,13 @@ Consumidor independente que escuta todos os eventos publicados por qualquer agê
 | `GET` | `/contas/{id}/notificacoes` | JWT + dono | Alertas de saldo baixo já recebidos |
 | `GET` | `/interno/dlq` | segredo interno | Espia as mensagens na dead-letter queue desta agência |
 | `POST` | `/interno/dlq/reprocessar` | segredo interno | Tenta reaplicar as mensagens da DLQ |
+| `POST` | `/contas/{id}/sincronizar` | JWT + dono | Sprint 3 - aplica depósito/saque feito offline, ou devolve `409` se o vetor estiver desatualizado |
+| `POST` | `/bully/eleicao` | — (ver nota) | Sprint 3 - recebe uma mensagem de eleição de outra agência |
+| `POST` | `/bully/coordenador` | — (ver nota) | Sprint 3 - recebe o anúncio de que uma agência se tornou líder |
+| `GET` | `/bully/lider` | pública | Sprint 3 - líder atual conhecida por esta agência |
+| `POST` | `/bully/eleicao/forcar` | pública | Sprint 3, extra - dispara uma nova eleição manualmente |
+| `GET` | `/bully/agencias-ativas` | pública | Sprint 3, extra - quais das 3 agências estão respondendo agora |
+| `GET` | `/bully/historico` | pública | Sprint 3, extra - histórico de eventos e trocas de liderança |
 
 Todas as rotas com `{id}` aplicam o guard de particionamento (`id % 3` precisa bater com a agência) e retornam erros no formato `{"erro": "..."}`. A rota `POST /contas/{id}/creditar-remoto` do Sprint 1 foi **removida** — o crédito remoto agora chega exclusivamente via mensageria.
 
@@ -272,6 +323,44 @@ Toda agência declara essa topologia inteira (as 3 agências, não só a própri
 
 ---
 
+## Eleição de líder (Bully)
+
+Implementado em `agencia/app/services/bully_service.py` (classe `ServicoBully`), seguindo o algoritmo de Bully (GARCIA-MOLINA, 1982): a agência de **maior ID** entre as ativas sempre vence.
+
+- **Eleição**: uma agência que não conhece a líder (ou percebeu que ela caiu) envia `POST /bully/eleicao` para todas as agências de ID maior. Se nenhuma responder, ela mesma se torna líder (`TORNOU_LIDER`) e anuncia via `POST /bully/coordenador` às demais. Se alguma de ID maior responder, é essa quem conduz a eleição.
+- **Ao receber uma eleição** de alguém com ID menor, a agência responde (confirmando que está viva) e dispara a própria eleição numa thread separada — afinal, ela também é candidata.
+- **Heartbeat**: a cada `ICEI_BULLY_HEARTBEAT_INTERVALO` segundos (padrão 3s), cada agência que não é a líder consulta `GET /bully/lider` na líder conhecida; se ela não responder, registra `LIDER_NAO_RESPONDEU`, esquece a líder e inicia uma nova eleição — sem intervenção manual.
+- **Timeout** de cada chamada HTTP entre agências: `ICEI_BULLY_TIMEOUT_HTTP` segundos (padrão 1s).
+- Todo o estado do líder (`lider_atual`, `eleicao_em_andamento`) vive atrás de um lock **próprio** do `ServicoBully`, separado de `app.state.lock` — o Bully nunca toca em contas, e os controllers de conta nunca tocam no estado do líder, então os dois locks nunca precisam ser aninhados (evita deadlock).
+- As rotas `/bully/eleicao` e `/bully/coordenador` são **propositalmente públicas** (sem JWT nem segredo interno) — réplica fiel do código de referência do roteiro, que usa isso como ponto de discussão sobre segurança (ver [`RESPOSTAS.md`](RESPOSTAS.md)).
+- A líder eleita é, por ora, só informativa — nenhuma operação bancária é coordenada por ela ainda (isso é o Sprint 4).
+- `historico_lideranca.py` (script standalone, raiz de `agencia/`) reconstrói a linha do tempo de eventos de eleição e de trocas de liderança a partir dos `.jsonl` das 3 agências — mesma lógica exposta também em `GET /bully/historico`.
+
+**Funcionalidades adicionais do Sprint 3** relacionadas ao Bully: eleição sob demanda (`POST /bully/eleicao/forcar`), indicador de agências ativas (`GET /bully/agencias-ativas`) e histórico de líderes na tela do app (consumindo `GET /bully/historico`) — ver [Funcionalidades adicionais](#funcionalidades-adicionais).
+
+---
+
+## App mobile (Flutter)
+
+Primeiro cliente mobile do projeto (`app_mobile/`), reaproveitando a mesma API REST que o frontend web já consome. Fluxo bancário completo (login JWT, saldo, depósito, saque, transferência local/entre agências) + um painel de liderança que consulta `GET /bully/lider` periodicamente (a cada 5s), com fallback sequencial pelas 3 agências conhecidas se a consultada não responder — mais os 3 extras do Bully (botão de eleição sob demanda, indicador de agências ativas, histórico de líderes).
+
+Arquitetura: `provider` (`ChangeNotifier`) para estado — `AuthProvider` espelha `frontend/src/context/AuthContext.jsx`; `ContaProvider` cobre o fluxo bancário e o lado otimista do offline-first; `FilaPendenteProvider` sincroniza a fila pendente ao reconectar; `LiderProvider` cuida do painel de liderança. Ver [`app_mobile/README.md`](app_mobile/README.md) para como gerar as pastas de plataforma (`flutter create .`) e rodar localmente — este código foi escrito sem Flutter SDK disponível na máquina onde foi gerado, então esses passos manuais são necessários antes do primeiro `flutter run`.
+
+---
+
+## Sincronização offline-first
+
+O endpoint `POST /contas/{id}/sincronizar` (Sprint 3, Parte E) usa o **relógio vetorial** do Sprint 2 para um propósito novo: não ordenar eventos entre agências, mas detectar se uma operação feita offline pelo app ainda é segura de aplicar.
+
+1. Toda consulta de saldo (`GET /contas/{id}`) agora devolve também `vetor_atual` — o app guarda esse vetor junto com o saldo em cache.
+2. Ao sincronizar uma operação pendente (depósito ou saque feito offline), o app envia esse `vetor_conhecido` de volta.
+3. A agência compara (`comparar_vetores`, já existente desde o Sprint 2) o vetor conhecido com o vetor atual: se forem **iguais**, nada mudou — aplica a operação normalmente. Se o vetor atual avançou, algo aconteceu na agência enquanto o app estava offline — a agência recusa aplicar cegamente e devolve `409` com `{erro, vetor_conhecido, vetor_atual, conta_atual}`.
+4. A agência **não** tenta resolver o conflito sozinha — devolve o estado atual e deixa a decisão para quem chamou. O app (ver `FilaPendenteProvider`) descarta a operação conflitante e avisa a pessoa usuária de forma visível, em vez de tentar de novo automaticamente ou escondido.
+
+Transferência fica fora do escopo deste endpoint — o próprio roteiro deixa isso como extensão opcional, e o app não enfileira transferências offline (elas sempre exigem conexão).
+
+---
+
 ## Autenticação (JWT)
 
 - **Credencial**: `id_conta` + `senha` — a própria conta é a identidade, sem um cadastro de usuário separado.
@@ -294,6 +383,12 @@ Toda agência declara essa topologia inteira (as 3 agências, não só a própri
 4. **Confirmação de entrega** — a agência de destino confirma de volta o resultado do crédito; a origem atualiza o status da transferência e o frontend acompanha isso com polling.
 5. **Fila de auditoria** — um consumidor independente (`auditor.py`) escuta tudo que é publicado, de qualquer agência, sem acoplamento com elas.
 6. **Notificação de saldo baixo** — alerta publicado (e consumido) quando o saldo de uma conta cruza um limite configurável.
+
+**Sprint 3** (descritas em detalhe no [`RESPOSTAS.md`](RESPOSTAS.md)):
+7. **Eleição sob demanda** — `POST /bully/eleicao/forcar` (e um botão no app) para disparar uma nova eleição manualmente, útil para demonstração.
+8. **Indicador de agências ativas** — `GET /bully/agencias-ativas` mostra quais das 3 agências estão respondendo agora, não só quem é a líder.
+9. **Histórico de líderes na tela** — o app consome `GET /bully/historico` e exibe as últimas trocas de liderança, além da líder atual.
+10. **Timeout configurável** — `ICEI_BULLY_TIMEOUT_HTTP` e `ICEI_BULLY_HEARTBEAT_INTERVALO`, lidos de variável de ambiente em vez de fixos no código.
 
 ---
 
@@ -340,6 +435,18 @@ evidencias/
     ├── extra-confirmacao/
     ├── extra-auditoria/
     └── extra-saldo-baixo/
+└── sprint3/
+    ├── ROTEIRO_VIDEO_SPRINT3.md
+    ├── apresentacao-sprint3.mp4     # vídeo de apresentação (via Git LFS)
+    ├── parte-a-bully/
+    ├── parte-b-heartbeat/
+    ├── parte-c-historico-lideranca/
+    ├── parte-d-app-flutter/
+    ├── parte-e-sincronizacao/
+    ├── parte-f-offline-first/
+    ├── extra-eleicao-sob-demanda/
+    ├── extra-agencias-ativas/
+    └── extra-historico-lideres/
 ```
 
 > Vídeos são versionados via **Git LFS** — rode `git lfs pull` após clonar se não baixarem automaticamente.
@@ -348,11 +455,10 @@ evidencias/
 
 ## Documentação de decisões e respostas
 
-Todas as perguntas conceituais dos dois roteiros (relógio de Lamport e vetorial, transferências, mensageria, linha do tempo, JWT, frontend) e as justificativas de design (modelo de credencial, autorização, segredos, escolha do limite diário, estorno em caso de falha de publicação) estão respondidas em detalhe em [`RESPOSTAS.md`](RESPOSTAS.md), incluindo a declaração de uso de IA exigida pelo roteiro do Sprint 2.
+Todas as perguntas conceituais dos três roteiros (relógio de Lamport e vetorial, transferências, mensageria, linha do tempo, JWT, frontend, eleição de líder, app Flutter, sincronização offline-first) e as justificativas de design (modelo de credencial, autorização, segredos, escolha do limite diário, estorno em caso de falha de publicação, ausência de autenticação nas rotas de Bully) estão respondidas em detalhe em [`RESPOSTAS.md`](RESPOSTAS.md), incluindo a declaração de uso de IA exigida pelos roteiros dos Sprints 2 e 3.
 
 ---
 
 ## Roadmap dos próximos sprints
 
-- **Sprint 3** — App mobile em Flutter, com consenso via eleição de líder.
-- **Sprint 4** — Deploy em containers, com transações distribuídas de verdade (2PC/Saga) resolvendo a limitação conhecida deste sprint.
+- **Sprint 4** — Deploy em containers, com transações distribuídas de verdade (2PC/Saga): a líder eleita no Sprint 3 passa a coordenar as transações entre agências.
