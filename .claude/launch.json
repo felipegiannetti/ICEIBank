@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "app_mobile_web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8723", "--directory", "app_mobile/build/web"],
+      "port": 8723
     }
   ]
 }
