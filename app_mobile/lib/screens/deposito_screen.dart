@@ -15,6 +15,7 @@ class _DepositoScreenState extends State<DepositoScreen> {
   final _valorController = TextEditingController();
   bool _enviando = false;
   String? _erro;
+  bool _ficouPendente = false;
 
   @override
   void dispose() {
@@ -45,6 +46,8 @@ class _DepositoScreenState extends State<DepositoScreen> {
               ),
               const SizedBox(height: 24),
               if (_erro != null) Text(_erro!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              if (_ficouPendente)
+                const Text('Sem conexão agora - o depósito foi guardado e será sincronizado automaticamente.'),
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: _enviando ? null : _confirmar,
@@ -64,13 +67,23 @@ class _DepositoScreenState extends State<DepositoScreen> {
     setState(() {
       _enviando = true;
       _erro = null;
+      _ficouPendente = false;
     });
     final conta = context.read<ContaProvider>();
-    final erro = await conta.depositar(double.parse(_valorController.text));
+    final valor = double.parse(_valorController.text);
+    final pendentesAntes = conta.pendentes.length;
+    final erro = await conta.depositar(valor);
     if (!mounted) return;
     if (erro != null) {
       setState(() {
         _erro = erro;
+        _enviando = false;
+      });
+      return;
+    }
+    if (conta.pendentes.length > pendentesAntes) {
+      setState(() {
+        _ficouPendente = true;
         _enviando = false;
       });
       return;

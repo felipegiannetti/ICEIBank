@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/conta_provider.dart';
+import '../providers/fila_pendente_provider.dart';
 import '../widgets/erro_banner.dart';
 import '../widgets/saldo_card.dart';
 import 'deposito_screen.dart';
@@ -24,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Future.microtask(() {
       if (!mounted) return;
       context.read<ContaProvider>().carregar();
+      context.read<FilaPendenteProvider>().sincronizarTudo();
     });
   }
 
@@ -31,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final conta = context.watch<ContaProvider>();
     final auth = context.watch<AuthProvider>();
+    final fila = context.watch<FilaPendenteProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -51,7 +54,13 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             if (conta.erro != null) ErroBanner(mensagem: conta.erro!),
-            SaldoCard(carregando: conta.carregando, saldo: conta.conta?.saldo ?? 0),
+            ...fila.ultimosConflitos.map((msg) => ErroBanner(mensagem: msg)),
+            if (fila.ultimosConflitos.isNotEmpty)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(onPressed: fila.limparConflitos, child: const Text('Ok, entendi')),
+              ),
+            SaldoCard(carregando: conta.carregando, saldo: conta.saldoExibido, pendentes: conta.pendentes.length),
             const SizedBox(height: 24),
             Wrap(
               spacing: 12,

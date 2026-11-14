@@ -1,6 +1,6 @@
 # ICEIBank - App mobile (Flutter)
 
-App Flutter do Sprint 3: fluxo bancário completo (login, saldo, depósito, saque, transferência) e painel de liderança (eleição Bully).
+App Flutter do Sprint 3: fluxo bancário completo (login, saldo, depósito, saque, transferência), painel de liderança (eleição Bully) e modo offline-first.
 
 Este código foi escrito **sem o Flutter SDK instalado na máquina onde foi gerado** - por isso os passos abaixo incluem comandos que você precisa rodar localmente antes do primeiro `flutter run`.
 
@@ -53,4 +53,7 @@ flutter run
 ## Decisões de implementação (ver RESPOSTAS.md para a versão completa)
 
 - **State management**: `provider` (ChangeNotifier) - `AuthProvider` espelha `frontend/src/context/AuthContext.jsx`.
+- **Armazenamento local**: `hive` + `hive_flutter`, guardando Maps simples (sem gerar `TypeAdapter` via `build_runner`/`hive_generator`) - evita depender de code generation.
+- **Offline-first**: depósito/saque tentam a chamada online normal; se não houver conexão, entram numa fila local (`StorageService`) com atualização otimista de saldo (selo "pendente" na tela). Ao reconectar (`connectivity_plus`), a fila é sincronizada automaticamente via `POST /contas/{id}/sincronizar`; um conflito (409) descarta a operação e avisa visivelmente, sem retry automático (ver `FilaPendenteProvider`).
+- **Transferências não entram na fila offline** - exigem conexão, pois o endpoint `/sincronizar` só cobre depósito/saque (mesmo escopo do roteiro oficial).
 - **Painel de liderança**: consulta `GET /bully/lider` a cada 5s, com fallback sequencial pelas 3 agências conhecidas se a atual não responder.

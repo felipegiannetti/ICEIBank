@@ -1,8 +1,9 @@
 import '../models/conta.dart';
 import 'api_client.dart';
 
-/// Fluxo bancario (Sprint 1/2) - espelha frontend/src/api/client.js::api
-/// (saldo, deposito, saque, transferencia).
+/// Fluxo bancario (Sprint 1/2) + sincronizacao offline-first (Sprint 3,
+/// Parte E) - espelha frontend/src/api/client.js::api (saldo, deposito,
+/// saque, transferencia) e adiciona /sincronizar.
 class ContaService {
   final ApiClient _client;
 
@@ -29,5 +30,22 @@ class ContaService {
       corpo: {'id_origem': idOrigem, 'id_destino': idDestino, 'valor': valor},
     );
     return dados as Map<String, dynamic>;
+  }
+
+  /// Sprint 3 - offline-first (Parte E). Em caso de conflito, a ApiException
+  /// lancada tem status 409 e `dados` preenchido com
+  /// {erro, vetor_conhecido, vetor_atual, conta_atual} - quem chama
+  /// (FilaPendenteProvider) decide o que fazer.
+  Future<Conta> sincronizar({
+    required int idConta,
+    required String tipo,
+    required double valor,
+    required List<int> vetorConhecido,
+  }) async {
+    final dados = await _client.post(
+      '/contas/$idConta/sincronizar',
+      corpo: {'tipo': tipo, 'valor': valor, 'vetor_conhecido': vetorConhecido},
+    );
+    return Conta.fromJson(dados as Map<String, dynamic>);
   }
 }
