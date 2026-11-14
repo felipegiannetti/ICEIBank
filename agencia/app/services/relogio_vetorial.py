@@ -34,6 +34,14 @@ class RelogioVetorial:
             self._vetor[self.id_agencia] += 1
             return list(self._vetor)
 
+    def obter_vetor_atual(self) -> list[int]:
+        """Le o vetor atual sem incrementar nada (Sprint 3 - sincronizacao
+        offline-first): o app guarda este vetor na ultima leitura e devolve
+        junto quando sincroniza, para a agencia saber se algo mudou enquanto
+        o app estava offline (ver services/comparar_vetores acima)."""
+        with self._lock:
+            return list(self._vetor)
+
 
 class RelacaoVetores(str, Enum):
     ANTES = "ANTES"

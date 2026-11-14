@@ -35,6 +35,18 @@ class TestRelogioVetorial(unittest.TestCase):
         self.assertEqual(vetor_envio, [2, 0, 0])
         self.assertEqual(agencia1.ao_receber(vetor_envio), [2, 2, 0])
 
+    def test_obter_vetor_atual_nao_incrementa(self):
+        relogio = RelogioVetorial(id_agencia=0, numero_agencias=3)
+        relogio.evento_local()
+        self.assertEqual(relogio.obter_vetor_atual(), [1, 0, 0])
+        self.assertEqual(relogio.obter_vetor_atual(), [1, 0, 0])  # chamar de novo nao muda nada
+
+    def test_obter_vetor_atual_retorna_copia(self):
+        relogio = RelogioVetorial(id_agencia=0, numero_agencias=3)
+        vetor = relogio.obter_vetor_atual()
+        vetor[0] = 99
+        self.assertEqual(relogio.obter_vetor_atual(), [0, 0, 0])  # mutar o retorno nao afeta o relogio interno
+
     def test_concorrencia_de_threads_nao_perde_incremento(self):
         relogio = RelogioVetorial(id_agencia=0, numero_agencias=2)
         n_threads, n_eventos = 10, 200

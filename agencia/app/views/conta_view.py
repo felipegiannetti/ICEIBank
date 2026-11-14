@@ -16,10 +16,20 @@ class ContaResponse(BaseModel):
     id: int
     nome_aluno: str
     saldo: float
+    vetor_atual: list[int] | None = None
 
 
 class ValorRequest(BaseModel):
     valor: float = Field(gt=0)
+
+
+class SincronizarRequest(BaseModel):
+    """Sprint 3 - offline-first: o app manda a operacao pendente junto com o
+    vetor que ele conhecia da conta na ultima leitura (vetor_conhecido)."""
+
+    tipo: str = Field(pattern="^(DEPOSITO|SAQUE)$")
+    valor: float = Field(gt=0)
+    vetor_conhecido: list[int]
 
 
 class EventoHistoricoResponse(BaseModel):

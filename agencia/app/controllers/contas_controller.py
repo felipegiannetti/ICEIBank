@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from app.config import agencia_responsavel
 from app.models.conta import Conta, LimiteExcedidoError
 from app.security import exigir_dono, hash_senha
 from app.services.handlers import verificar_e_alertar_saldo_baixo
+from app.services.relogio_vetorial import RelacaoVetores, comparar_vetores
 from app.views.conta_view import (
     AtualizarLimiteRequest,
     ContaResponse,
@@ -11,6 +13,7 @@ from app.views.conta_view import (
     HistoricoResponse,
     LimiteResponse,
     NotificacoesResponse,
+    SincronizarRequest,
     ValorRequest,
 )
 
@@ -47,7 +50,12 @@ def consultar_saldo(id_conta: int, request: Request, _: int = Depends(exigir_don
     conta = state.contas.obter(id_conta)
     if not conta:
         raise HTTPException(status_code=404, detail="Conta não encontrada nesta agência.")
-    return conta
+    # Sprint 3 - offline-first: o app guarda este vetor e devolve na
+    # proxima sincronizacao, para a agencia saber se algo mudou enquanto
+    # ele estava offline (ver /{id_conta}/sincronizar abaixo).
+    return ContaResponse(
+        id=conta.id, nome_aluno=conta.nome_aluno, saldo=conta.saldo, vetor_atual=state.relogio.obter_vetor_atual()
+    )
 
 
 @router.post("/{id_conta}/depositar", response_model=ContaResponse)
@@ -161,3 +169,58 @@ def notificacoes(id_conta: int, request: Request, _: int = Depends(exigir_dono))
     with state.lock:
         lista = list(state.notificacoes.get(id_conta, []))
     return NotificacoesResponse(conta_id=id_conta, notificacoes=lista)
+
+
+@router.post("/{id_conta}/sincronizar")
+def sincronizar(id_conta: int, body: SincronizarRequest, request: Request, _: int = Depends(exigir_dono)):
+    """Sprint 3 - offline-first: aplica uma operacao (deposito/saque) feita
+    pelo app enquanto estava sem conexao. Compara o vetor que o app tinha na
+    ultima leitura (vetor_conhecido) com o vetor atual da agencia: se outra
+    coisa aconteceu na conta nesse meio-tempo, os vetores nao sao mais
+    IGUAIS e a agencia recusa aplicar cegamente (409) - cabe ao app (ou a
+    pessoa usuaria) decidir o que fazer com uma sincronizacao rejeitada
+    (ver RESPOSTAS.md, Parte E). Transferencia fica fora do escopo deste
+    endpoint (o proprio roteiro deixa isso como extensao opcional)."""
+    state = request.app.state
+    with state.lock:
+        conta = state.contas.obter(id_conta)
+        if not conta:
+            raise HTTPException(status_code=404, detail="Conta não encontrada nesta agência.")
+
+        vetor_atual = state.relogio.obter_vetor_atual()
+        relacao = comparar_vetores(body.vetor_conhecido, vetor_atual)
+        if relacao != RelacaoVetores.IGUAIS:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "erro": "Conflito detectado: o estado da conta mudou desde a última sincronização do app.",
+                    "vetor_conhecido": body.vetor_conhecido,
+                    "vetor_atual": vetor_atual,
+                    "conta_atual": {
+                        "id": conta.id,
+                        "nome_aluno": conta.nome_aluno,
+                        "saldo": conta.saldo,
+                        "vetor_atual": vetor_atual,
+                    },
+                },
+            )
+
+        if body.tipo == "DEPOSITO":
+            ts = state.relogio.evento_local()
+            conta.saldo += body.valor
+        else:  # SAQUE - validado pelo pattern em SincronizarRequest.tipo
+            if conta.saldo < body.valor:
+                raise HTTPException(status_code=400, detail="Saldo insuficiente.")
+            try:
+                conta.consumir_limite_diario(body.valor)
+            except LimiteExcedidoError as erro:
+                raise HTTPException(status_code=400, detail=str(erro))
+            ts = state.relogio.evento_local()
+            conta.saldo -= body.valor
+
+        state.registro.registrar(
+            "SINCRONIZACAO_OFFLINE", ts, {"id": id_conta, "tipo": body.tipo, "valor": body.valor, "novo_saldo": conta.saldo}
+        )
+        return ContaResponse(
+            id=conta.id, nome_aluno=conta.nome_aluno, saldo=conta.saldo, vetor_atual=state.relogio.obter_vetor_atual()
+        )
