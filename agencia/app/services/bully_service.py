@@ -173,3 +173,21 @@ class ServicoBully:
 
     def parar_heartbeat(self) -> None:
         self._parar_heartbeat.set()
+
+    def agencias_ativas(self) -> list[dict]:
+        """Funcionalidade adicional: mostra quais das 3 agencias estao
+        respondendo agora, nao so quem e a lider. Calculado sob demanda
+        (ping sincrono em cada agencia), nao depende do heartbeat ja ter
+        rodado."""
+        resultado = []
+        for agencia in self._agencias:
+            if agencia["id"] == self.id_agencia:
+                resultado.append({"id": agencia["id"], "url": agencia["url"], "ativa": True})
+                continue
+            try:
+                resposta = self._get(agencia["url"], "/bully/lider")
+                ativa = resposta.status_code == 200
+            except httpx.HTTPError:
+                ativa = False
+            resultado.append({"id": agencia["id"], "url": agencia["url"], "ativa": ativa})
+        return resultado
