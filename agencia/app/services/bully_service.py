@@ -27,6 +27,8 @@ class ServicoBully:
         self._lock = threading.Lock()
         self._lider_atual: Optional[int] = None
         self._eleicao_em_andamento = False
+        self._parar_heartbeat = threading.Event()
+        self._thread_heartbeat: Optional[threading.Thread] = None
 
     # --- estado (lido/escrito sempre sob self._lock) ---------------------
 
@@ -125,3 +127,49 @@ class ServicoBully:
             self._lider_atual = id_agencia_lider
             self._eleicao_em_andamento = False
         state.registro.registrar("LIDER_ANUNCIADO", vetor, {"lider": id_agencia_lider, "agencia": self.id_agencia})
+
+    # --- heartbeat e failover -------------------------------------------
+
+    def verificar_heartbeat(self) -> None:
+        lider = self.lider_atual()
+        if lider is None:
+            self.iniciar_eleicao()
+            return
+        if lider == self.id_agencia:
+            return  # sou eu mesma - nada a verificar
+
+        agencia_lider = next((a for a in self._agencias if a["id"] == lider), None)
+        if agencia_lider is None:
+            return
+
+        try:
+            resposta = self._get(agencia_lider["url"], "/bully/lider")
+            if resposta.status_code == 200:
+                return
+        except httpx.HTTPError:
+            pass
+
+        state = self._app.state
+        vetor = state.relogio.evento_local()
+        state.registro.registrar("LIDER_NAO_RESPONDEU", vetor, {"lider_atual": lider, "agencia": self.id_agencia})
+        with self._lock:
+            self._lider_atual = None
+        self.iniciar_eleicao()
+
+    def iniciar_heartbeat_loop(self, intervalo: float | None = None) -> None:
+        intervalo = intervalo if intervalo is not None else config.BULLY_HEARTBEAT_INTERVALO
+
+        def _loop() -> None:
+            while not self._parar_heartbeat.wait(intervalo):
+                try:
+                    self.verificar_heartbeat()
+                except Exception as erro:  # nunca deixa o loop morrer por um erro inesperado
+                    print(f"[bully] erro no heartbeat da agência {self.id_agencia}: {erro}")
+
+        self._thread_heartbeat = threading.Thread(
+            target=_loop, name=f"bully-heartbeat-{self.id_agencia}", daemon=True
+        )
+        self._thread_heartbeat.start()
+
+    def parar_heartbeat(self) -> None:
+        self._parar_heartbeat.set()

@@ -63,11 +63,14 @@ def criar_app() -> FastAPI:
 
         # Sprint 3 - eleicao de lider (Bully): dispara a eleicao inicial numa
         # thread separada (nao bloqueia o startup do uvicorn, ja que pode
-        # levar ate BULLY_TIMEOUT_HTTP segundos por agencia de ID maior).
+        # levar ate BULLY_TIMEOUT_HTTP segundos por agencia de ID maior) e
+        # inicia o loop de heartbeat que detecta a queda da lider.
         threading.Thread(target=app.state.bully.iniciar_eleicao, daemon=True).start()
+        app.state.bully.iniciar_heartbeat_loop()
 
         yield
 
+        app.state.bully.parar_heartbeat()
         for consumidor in consumidores:
             consumidor.parar()
         app.state.publicador.fechar()

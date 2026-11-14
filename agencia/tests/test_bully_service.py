@@ -4,6 +4,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import httpx
+
 from app.services.bully_service import ServicoBully
 from app.services.relogio_vetorial import RelogioVetorial
 
@@ -100,6 +102,32 @@ class TestServicoBully(unittest.TestCase):
         self.assertEqual(bully.lider_atual(), 2)
         self.assertFalse(bully.eleicao_em_andamento())
         self.assertIn("LIDER_ANUNCIADO", app.state.registro.tipos())
+
+    def test_verificar_heartbeat_reelege_quando_lider_nao_responde(self):
+        # Agencia 1 pensa que a lider e a agencia 2; a agencia 2 nao
+        # responde nem ao heartbeat nem a nova eleicao -> agencia 1 (unica
+        # de ID maior restante, a propria) se torna lider.
+        app = criar_app_falso(id_agencia=1)
+        bully = ServicoBully(app, id_agencia=1, agencias=AGENCIAS)
+        bully.receber_coordenador(2, [0, 0, 1])
+        self.assertEqual(bully.lider_atual(), 2)
+
+        with patch.object(bully, "_get", side_effect=httpx.ConnectError("fora do ar")), patch.object(
+            bully, "_post", side_effect=httpx.ConnectError("fora do ar")
+        ):
+            bully.verificar_heartbeat()
+
+        self.assertIn("LIDER_NAO_RESPONDEU", app.state.registro.tipos())
+        self.assertEqual(bully.lider_atual(), 1)  # ninguem de ID maior respondeu -> ela mesma vira lider
+
+    def test_verificar_heartbeat_sem_lider_dispara_eleicao(self):
+        app = criar_app_falso(id_agencia=2)
+        bully = ServicoBully(app, id_agencia=2, agencias=AGENCIAS)
+
+        with patch.object(bully, "_post", return_value=MagicMock(status_code=200)):
+            bully.verificar_heartbeat()
+
+        self.assertEqual(bully.lider_atual(), 2)
 
     def test_duas_chamadas_concorrentes_a_iniciar_eleicao_nao_duplicam(self):
         app = criar_app_falso(id_agencia=0)
