@@ -1,8 +1,10 @@
 # Guia passo a passo — o que falta para fechar a Sprint 3
 
-Este guia cobre exatamente o que ficou pendente depois da implementação: instalar o que falta, rodar tudo junto, e capturar cada evidência pedida pelo roteiro (`ROTEIRO_SPRINT_3.md`, seção 4.2).
+> **Atualização:** depois que você instalou o Android Studio (passo 1), o Claude rodou todo o resto desta sessão sozinho: subiu o emulador `Pixel_7` via linha de comando (headless, sem abrir a janela gráfica), instalou a NDK que faltava, compilou e instalou o app real, e capturou **todas as 8 evidências obrigatórias + os 3 extras** (já estão em `evidencias/sprint3/`, commitadas) clicando de verdade no app via `adb`. Os detalhes de como cada uma foi reproduzida estão na nota de transparência do `RESPOSTAS.md` (seção Sprint 3). **O que realmente falta agora é só o vídeo de apresentação** — pule direto para a seção 5 deste guia. O restante abaixo (seções 1-4) ficou como referência caso você queira reproduzir algo você mesma/o, mas não é mais necessário para fechar a sprint.
 
-Já está pronto e commitado: todo o backend (Bully, heartbeat, histórico, sincronização offline-first), todo o código do app Flutter (`app_mobile/`), as pastas `android/`/`ios/`/`web/` já geradas, e o Flutter SDK já instalado nesta máquina em `C:\flutter`. Falta só rodar no seu emulador/dispositivo de verdade e capturar as telas.
+Este guia cobria originalmente o que ficou pendente depois da implementação: instalar o que falta, rodar tudo junto, e capturar cada evidência pedida pelo roteiro (`ROTEIRO_SPRINT_3.md`, seção 4.2).
+
+Já está pronto e commitado: todo o backend (Bully, heartbeat, histórico, sincronização offline-first), todo o código do app Flutter (`app_mobile/`), as pastas `android/`/`ios/`/`web/` já geradas, o Flutter SDK já instalado nesta máquina em `C:\flutter`, e agora também todas as evidências de telas/respostas.
 
 ---
 
