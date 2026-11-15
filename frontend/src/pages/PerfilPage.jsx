@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ApiError, api, getAgenciaUrl } from "../api/client";
 import AppShell from "../components/AppShell";
 import ErrorBanner from "../components/ErrorBanner";
-import { IconBank, IconGauge, IconLogout } from "../components/icons";
+import { IconBank, IconCard, IconGauge, IconLogout } from "../components/icons";
 import { useAuth } from "../context/AuthContext";
 
 export default function PerfilPage() {
@@ -75,7 +75,7 @@ export default function PerfilPage() {
         </div>
       </div>
 
-      <div className="acoes-grid entrada entrada-atraso-2" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+      <div className="acoes-grid entrada entrada-atraso-2" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <Link to="/limite" className="acao-item">
           <span className="acao-icone">
             <IconGauge />
@@ -87,6 +87,12 @@ export default function PerfilPage() {
             <IconBank />
           </span>
           <span>Ver extrato</span>
+        </Link>
+        <Link to="/cartao" className="acao-item">
+          <span className="acao-icone">
+            <IconCard />
+          </span>
+          <span>Cartão virtual</span>
         </Link>
         <button
           type="button"

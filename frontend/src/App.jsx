@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
 import CadastroPage from "./pages/CadastroPage";
+import CartaoPage from "./pages/CartaoPage";
 import ContaPage from "./pages/ContaPage";
 import DepositoPage from "./pages/DepositoPage";
 import HistoricoPage from "./pages/HistoricoPage";
@@ -46,6 +47,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <TransferenciaPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cartao"
+          element={
+            <ProtectedRoute>
+              <CartaoPage />
             </ProtectedRoute>
           }
         />

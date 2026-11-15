@@ -95,6 +95,25 @@ export function IconEyeOff({ className, ...props }) {
   );
 }
 
+export function IconCard({ className, ...props }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} {...base} {...props}>
+      <rect x="2.5" y="5" width="19" height="14" rx="2.6" />
+      <path d="M2.5 9.7h19" />
+      <path d="M6 14.3h4.2" />
+    </svg>
+  );
+}
+
+export function IconCopy({ className, ...props }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} {...base} {...props}>
+      <rect x="9" y="9" width="12" height="12" rx="2.2" />
+      <path d="M15 9V5.2A2.2 2.2 0 0 0 12.8 3H5.2A2.2 2.2 0 0 0 3 5.2v7.6A2.2 2.2 0 0 0 5.2 15H9" />
+    </svg>
+  );
+}
+
 export function IconBank({ className, ...props }) {
   return (
     <svg viewBox="0 0 24 24" className={className} {...base} {...props}>

@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCard,
   IconGauge,
   IconHome,
   IconList,
@@ -15,6 +16,7 @@ const LINKS = [
   { to: "/depositar", label: "Depositar", Icone: IconArrowDown },
   { to: "/sacar", label: "Sacar", Icone: IconArrowUp },
   { to: "/transferir", label: "Transferir", Icone: IconSwap },
+  { to: "/cartao", label: "Cartão virtual", Icone: IconCard },
   { to: "/historico", label: "Extrato", Icone: IconList },
   { to: "/limite", label: "Limite", Icone: IconGauge },
 ];
